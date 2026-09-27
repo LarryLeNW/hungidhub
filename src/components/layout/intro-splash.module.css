@@ -1,0 +1,144 @@
+/* Timeline (total 2600ms — keep in sync with DURATION in intro-splash.tsx):
+   0–700ms mark pops in · 600–1450ms wordmark + tagline · 1950ms zoom through · 2100ms overlay fades */
+
+.overlay {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(34 197 94 / 10%), transparent 42rem),
+    #050807;
+  animation: overlay-out 500ms ease 2100ms forwards;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  animation: stage-zoom 650ms cubic-bezier(0.65, 0, 0.85, 0.35) 1950ms forwards;
+}
+
+.glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(34 197 94 / 26%), transparent 65%);
+  filter: blur(8px);
+  translate: -50% -50%;
+  animation: glow-in 1200ms ease 250ms both;
+}
+
+.mark {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  border-radius: 27%;
+  background: linear-gradient(135deg, #2fd36c, #1cae55 55%, #15803d);
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 16%),
+    0 24px 80px rgb(34 197 94 / 35%);
+  animation: mark-in 700ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.word {
+  position: relative;
+  margin-top: 26px;
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  animation: rise-in 600ms ease 600ms both;
+}
+
+.word > span {
+  background: linear-gradient(120deg, #4ade80, #1cae55);
+  background-clip: text;
+  color: transparent;
+}
+
+.word > strong {
+  color: #f5f8fc;
+}
+
+.tagline {
+  position: relative;
+  margin-top: 12px;
+  color: #7fae93;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  animation: rise-in 600ms ease 850ms both;
+}
+
+@keyframes mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes stage-zoom {
+  to {
+    opacity: 0;
+    transform: scale(6);
+  }
+}
+
+/* visibility flips during the fade so the page becomes interactive even before
+   hydration removes the overlay (fill forwards keeps it hidden). */
+@keyframes overlay-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    display: none;
+  }
+}

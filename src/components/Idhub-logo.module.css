@@ -1,0 +1,145 @@
+.logo {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  isolation: isolate;
+}
+
+.mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18%;
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 16%),
+    0 8px 20px rgb(22 163 74 / 22%);
+  transition: box-shadow 170ms ease, transform 170ms ease;
+}
+
+.logo:hover .mark {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 16%),
+    0 11px 26px rgb(22 163 74 / 32%);
+  transform: translateY(-1px);
+}
+
+.markImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wordmark {
+  display: grid;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 900;
+  letter-spacing: -.035em;
+  line-height: 1;
+}
+
+.name > span {
+  background: linear-gradient(120deg, #2fd36c, #15803d);
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  color: #16a34a;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.adminBadge {
+  margin-left: 7px;
+  padding: 3px 5px;
+  border: 1px solid rgb(34 197 94 / 22%);
+  border-radius: 4px;
+  background: rgb(34 197 94 / 7%);
+  color: #4c9e6d;
+  font-size: 6px;
+  font-weight: 850;
+  letter-spacing: .12em;
+  line-height: 1;
+}
+
+/* Tone: wordmark text against light vs dark backgrounds (the mark is shared). */
+.light .name > strong {
+  color: #14532d;
+}
+
+.dark .name > strong {
+  color: #f5f8fc;
+}
+
+.dark .name > span {
+  background: linear-gradient(120deg, #4ade80, #1cae55);
+  background-clip: text;
+}
+
+.dark .tagline {
+  color: #86a394;
+}
+
+.dark .mark {
+  box-shadow: 0 8px 20px rgb(34 197 94 / 16%);
+}
+
+/* Sizes */
+.sm .mark {
+  width: 36px;
+  height: 36px;
+}
+
+.sm .name {
+  font-size: 17px;
+}
+
+.sm .tagline {
+  font-size: 8px;
+}
+
+.sm .adminBadge {
+  font-size: 5.5px;
+}
+
+.md .mark {
+  width: 42px;
+  height: 42px;
+}
+
+.md .name {
+  font-size: 20px;
+}
+
+.md .tagline {
+  font-size: 9px;
+}
+
+.lg .mark {
+  width: 48px;
+  height: 48px;
+}
+
+.lg .name {
+  font-size: 25px;
+}
+
+.lg .tagline {
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    transition: none;
+  }
+}

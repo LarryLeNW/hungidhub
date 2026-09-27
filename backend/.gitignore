@@ -1,0 +1,21 @@
+# dependencies
+/node_modules
+
+# build
+/dist
+
+# env
+.env
+.env.*
+!.env.example
+
+# tests
+/coverage
+
+# misc
+*.log
+.DS_Store
+*.tsbuildinfo
+
+# uploaded media
+/uploads

@@ -136,3 +136,12 @@ export class OrdersController {
 - Set `NODE_ENV=production`, `DB_SYNCHRONIZE=false` and manage schema with TypeORM migrations.
 - Use long random `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`; Swagger is disabled in production.
 - Remove `ADMIN_PASSWORD` from the environment after the first boot.
+
+## Casso
+
+Create a **Webhook V2** integration in Casso with the public URL
+`https://<api-domain>/api/webhooks/casso`. Copy its security key to
+`CASSO_WEBHOOK_SECRET`, set `CASSO_ACCOUNT_NUMBER` to the receiving account, and enable
+income-only events plus Strict mode. The API verifies Casso's signature, then confirms a pending
+bank-transfer order only when the `AH...` code and exact amount both match. Legacy
+`secure-token` webhooks are accepted with the same secret during migration.

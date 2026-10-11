@@ -14,6 +14,8 @@ import {
   OrdersController,
 } from './orders.controllers.js';
 import { OrdersService } from './orders.service.js';
+import { CassoWebhookController } from './casso-webhook.controller.js';
+import { CassoWebhookService } from './casso-webhook.service.js';
 
 @Module({
   imports: [
@@ -29,8 +31,8 @@ import { OrdersService } from './orders.service.js';
     FinanceModule,
     SystemModule,
   ],
-  controllers: [OrdersController, AdminOrdersController],
-  providers: [OrdersService],
+  controllers: [OrdersController, AdminOrdersController, CassoWebhookController],
+  providers: [OrdersService, CassoWebhookService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

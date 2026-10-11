@@ -167,6 +167,23 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
   const [placedOrder, setPlacedOrder] = useState<ApiOrder | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutPending, setCheckoutPending] = useState(false);
+  const placedOrderCode = placedOrder?.code;
+  const placedOrderEmail = placedOrder?.customerEmail;
+  const placedOrderStatus = placedOrder?.status;
+
+  // Casso confirms asynchronously; keep the visible payment state fresh.
+  useEffect(() => {
+    if (!placedOrderCode || !placedOrderEmail || placedOrderStatus !== "pending_payment") return;
+    const refresh = async () => {
+      try {
+        setPlacedOrder(await ordersApi.lookup(placedOrderCode, placedOrderEmail));
+      } catch {
+        // A transient API/network error should not interrupt checkout.
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5000);
+    return () => window.clearInterval(timer);
+  }, [placedOrderCode, placedOrderEmail, placedOrderStatus]);
 
   const effectiveDraft = useMemo<CheckoutDraft>(
     () => ({

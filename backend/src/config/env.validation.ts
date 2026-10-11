@@ -100,6 +100,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   UPLOAD_DIR?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(16)
+  CASSO_WEBHOOK_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  CASSO_ACCOUNT_NUMBER?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

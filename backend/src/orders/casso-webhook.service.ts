@@ -132,9 +132,10 @@ export class CassoWebhookService {
 
     let isAuthorized = false;
     if (secret) {
-      if (headers.signature) {
-        isAuthorized = verifyCassoSignature(headers.signature, body, secret);
-      } else if (headers.secureToken && headers.secureToken === secret) {
+      if (headers.signature && verifyCassoSignature(headers.signature, body, secret)) {
+        isAuthorized = true;
+      }
+      if (!isAuthorized && headers.secureToken && headers.secureToken === secret) {
         isAuthorized = true;
       }
     }

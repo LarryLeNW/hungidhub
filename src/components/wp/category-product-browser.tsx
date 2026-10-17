@@ -22,17 +22,19 @@ export function CategoryProductBrowser({
   const sortedProducts = useMemo(() => {
     const next = [...products];
     if (sortMode === "price") {
-      next.sort((a, b) => a.variants[0].salePrice - b.variants[0].salePrice);
+      next.sort((a, b) => (a.variants[0]?.salePrice ?? 0) - (b.variants[0]?.salePrice ?? 0));
     } else if (sortMode === "rating") {
       next.sort((a, b) => b.ratingAverage - a.ratingAverage);
     } else if (sortMode === "stock") {
-      next.sort((a, b) =>
-        a.variants[0].stockStatus === b.variants[0].stockStatus
+      next.sort((a, b) => {
+        const aStock = a.variants[0]?.stockStatus ?? "out_of_stock";
+        const bStock = b.variants[0]?.stockStatus ?? "out_of_stock";
+        return aStock === bStock
           ? 0
-          : a.variants[0].stockStatus === "in_stock"
+          : aStock === "in_stock"
             ? -1
-            : 1,
-      );
+            : 1;
+      });
     } else {
       next.sort((a, b) => b.soldCount - a.soldCount);
     }

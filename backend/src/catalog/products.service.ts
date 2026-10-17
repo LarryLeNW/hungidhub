@@ -354,7 +354,7 @@ export class ProductsService {
   }
 
   async removeVariant(variantId: number) {
-    const variant = await this.findVariant(variantId);
+    const _variant = await this.findVariant(variantId);
     const delivered = await this.inventory.countBy({
       variantId,
       status: InventoryItemStatus.Delivered,

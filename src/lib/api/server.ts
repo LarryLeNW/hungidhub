@@ -4,7 +4,10 @@ import { API_URL, normalizeUploadedMedia } from "./client";
 
 // Server Components can use the private Docker/network address while browsers
 // keep using the public same-origin `/api` endpoint.
-const SERVER_API_URL = (process.env.API_INTERNAL_URL ?? API_URL).replace(/\/+$/, "");
+const SERVER_API_URL = (
+  process.env.API_INTERNAL_URL ??
+  (API_URL.startsWith("http") ? API_URL : "http://localhost:4000/api")
+).replace(/\/+$/, "");
 
 /** Fetches fresh API data for Server Components on every request. */
 export async function serverFetch<T>(path: string): Promise<T | null> {

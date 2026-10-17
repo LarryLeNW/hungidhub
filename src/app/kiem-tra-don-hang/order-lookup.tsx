@@ -39,6 +39,22 @@ export function OrderLookup() {
     return () => window.clearTimeout(timer);
   }, [searchParams, lookup]);
 
+  // Tự động làm mới mỗi 3 giây khi đơn ở trạng thái chờ thanh toán
+  useEffect(() => {
+    if (!order || order.status !== "pending_payment") return;
+    const interval = window.setInterval(async () => {
+      try {
+        const refreshed = await ordersApi.lookup(order.code, order.customerEmail);
+        if (refreshed.status !== order.status) {
+          setOrder(refreshed);
+        }
+      } catch {
+        // bỏ qua lỗi mạng tạm thời
+      }
+    }, 3000);
+    return () => window.clearInterval(interval);
+  }, [order]);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void lookup(code, email);

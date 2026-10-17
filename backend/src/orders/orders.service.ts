@@ -54,11 +54,16 @@ type OrderCustomerSnapshot = {
   email: string;
 };
 
-/** Fallback until an admin saves `payment.bank` in Settings. */
-const DEFAULT_BANK_INFO: BankInfo = {
-  bankName: 'VCB',
-  accountNumber: '1017164832',
-  accountName: 'AIHUB',
+export const DEFAULT_BANK_INFO: BankInfo = {
+  bankName: process.env.BANK_NAME || 'BIDV',
+  accountNumber: (
+    process.env.BANK_ACCOUNT_NUMBER ||
+    process.env.CASSO_ACCOUNT_NUMBER ||
+    'V3CASS111'
+  )
+    .split(',')[0]
+    .trim(),
+  accountName: process.env.BANK_ACCOUNT_NAME || 'AIHUB',
 };
 
 export type PaymentInstructions = BankInfo & {
@@ -237,7 +242,7 @@ export class OrdersService {
             amount: total,
             status: PaymentStatus.Pending,
             provider:
-              dto.paymentMethod === PaymentMethod.BankTransfer ? 'ACB' : 'Zalo',
+              dto.paymentMethod === PaymentMethod.BankTransfer ? 'BIDV' : 'Zalo',
             transferContent: transferContentFor(created.code, user?.id),
           }),
         );
@@ -322,10 +327,15 @@ export class OrdersService {
   }
 
   async paymentInstructions(order: Order): Promise<PaymentInstructions> {
-    const setting = await this.settings.findOneBy({ key: 'payment.bank' });
-    const bank = {
-      ...DEFAULT_BANK_INFO,
-      ...(setting?.value as Partial<BankInfo> | undefined),
+    const bank: BankInfo = {
+      bankName: process.env.BANK_NAME || DEFAULT_BANK_INFO.bankName,
+      accountNumber:
+        (process.env.BANK_ACCOUNT_NUMBER ||
+          process.env.CASSO_ACCOUNT_NUMBER ||
+          DEFAULT_BANK_INFO.accountNumber)
+          .split(',')[0]
+          .trim(),
+      accountName: process.env.BANK_ACCOUNT_NAME || DEFAULT_BANK_INFO.accountName,
     };
     return {
       method: order.paymentMethod,

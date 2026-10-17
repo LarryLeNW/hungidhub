@@ -171,19 +171,26 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
   const placedOrderEmail = placedOrder?.customerEmail;
   const placedOrderStatus = placedOrder?.status;
 
-  // Casso confirms asynchronously; keep the visible payment state fresh.
+  // Casso confirms asynchronously; keep the visible payment state fresh and redirect on success.
   useEffect(() => {
     if (!placedOrderCode || !placedOrderEmail || placedOrderStatus !== "pending_payment") return;
     const refresh = async () => {
       try {
-        setPlacedOrder(await ordersApi.lookup(placedOrderCode, placedOrderEmail));
+        const updated = await ordersApi.lookup(placedOrderCode, placedOrderEmail);
+        setPlacedOrder(updated);
+        if (updated.status === "processing" || updated.status === "completed") {
+          setDrawer(null);
+          router.push(
+            `/kiem-tra-don-hang?code=${encodeURIComponent(updated.code)}&email=${encodeURIComponent(updated.customerEmail)}`
+          );
+        }
       } catch {
         // A transient API/network error should not interrupt checkout.
       }
     };
-    const timer = window.setInterval(() => void refresh(), 5000);
+    const timer = window.setInterval(() => void refresh(), 2500);
     return () => window.clearInterval(timer);
-  }, [placedOrderCode, placedOrderEmail, placedOrderStatus]);
+  }, [placedOrderCode, placedOrderEmail, placedOrderStatus, router]);
 
   const effectiveDraft = useMemo<CheckoutDraft>(
     () => ({

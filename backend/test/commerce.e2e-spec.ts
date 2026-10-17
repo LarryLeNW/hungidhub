@@ -1,7 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from './../src/app.module.js';
 import { Category } from './../src/catalog/entities/category.entity.js';
@@ -17,7 +16,7 @@ import { User } from './../src/users/entities/user.entity.js';
  * credentials. Everything created here is removed in afterAll.
  */
 describe('Commerce (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let http: () => request.Agent;
   let adminToken = '';
   const stamp = Date.now();

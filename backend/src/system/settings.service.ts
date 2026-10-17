@@ -68,8 +68,8 @@ export const DEFAULT_SETTINGS: SettingSeed[] = [
     key: 'payment.bank',
     group: SettingGroup.Payment,
     value: {
-      bankName: 'VCB',
-      accountNumber: '1017164832',
+      bankName: 'BIDV',
+      accountNumber: 'V3CASS111',
       accountName: 'AIHUB',
     },
     description:
@@ -216,6 +216,18 @@ export class SettingsService implements OnApplicationBootstrap {
       storeName.updatedById = null;
       await this.settings.save(storeName);
       this.logger.log('Migrated store.name from AIHUB to IDHUB');
+    }
+
+    const bankSetting = await this.settings.findOneBy({ key: 'payment.bank' });
+    if (bankSetting && (bankSetting.value as { accountNumber?: string })?.accountNumber === '1017164832') {
+      bankSetting.value = {
+        bankName: 'BIDV',
+        accountNumber: 'V3CASS111',
+        accountName: 'AIHUB',
+      };
+      bankSetting.updatedById = null;
+      await this.settings.save(bankSetting);
+      this.logger.log('Migrated payment.bank to BIDV V3CASS111');
     }
   }
 

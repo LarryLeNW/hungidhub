@@ -14,11 +14,15 @@ const DURATION = 2600;
  * hydration, and JS only unmounts the finished overlay / handles skip.
  */
 export function IntroSplash() {
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setPlaying(false);
       return;
     }
     const timer = window.setTimeout(() => setPlaying(false), DURATION);

@@ -44,6 +44,8 @@ services:
       ADMIN_PASSWORD: Admin@12345
       ADMIN_NAME: Admin
       UPLOAD_DIR: /app/uploads
+      CASSO_ACCOUNT_NUMBER: ${CASSO_ACCOUNT_NUMBER:-V3CASS111}
+      CASSO_WEBHOOK_SECRET: ${CASSO_WEBHOOK_SECRET:-}
     depends_on:
       mysql:
         condition: service_healthy

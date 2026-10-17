@@ -22,7 +22,24 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.setGlobalPrefix(prefix);
-  app.enableCors({ origin: origins, credentials: true });
+  app.enableCors({
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) return callback(null, true);
+      if (origins.includes(requestOrigin)) {
+        return callback(null, true);
+      }
+      try {
+        const hostname = new URL(requestOrigin).hostname;
+        if (/\.ngrok(-free)?\.(app|io)$/i.test(hostname)) {
+          return callback(null, true);
+        }
+      } catch {
+        // ignore invalid URL format
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+  });
   app.enableShutdownHooks();
 
   // Uploaded media (product/category/content images) – outside the API prefix.

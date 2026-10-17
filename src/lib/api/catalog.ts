@@ -122,7 +122,7 @@ export async function fetchProductsBySlugs(slugs: string[]) {
 
   try {
     const response = await fetch(
-      `${API_URL}/products${buildQuery({ slugs: unique, limit: Math.min(100, unique.length) })}`,
+      `${API_URL.startsWith("http") ? API_URL : "http://localhost:4000/api"}/products${buildQuery({ slugs: unique, limit: Math.min(100, unique.length) })}`,
       { cache: "no-store" },
     );
     if (!response.ok) return map;

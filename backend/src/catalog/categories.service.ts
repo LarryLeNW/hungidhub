@@ -156,7 +156,7 @@ export class CategoriesService {
   }
 
   async remove(id: number) {
-    const category = await this.findById(id);
+    const _category = await this.findById(id);
     const childCount = await this.categories.countBy({ parentId: id });
     if (childCount > 0) {
       throw new ConflictException('Vui lòng chuyển hoặc xóa các danh mục con trước');

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "sync:wp": "node scripts/sync-wp-content.mjs",
-    "visual:compare": "node scripts/visual-compare.mjs"
+    "visual:compare": "node scripts/visual-compare.mjs",
+    "test:playwright": "node scripts/playwright-e2e-test.mjs",
+    "tunnel": "ngrok http 3000"
   },
   "dependencies": {
     "@tiptap/extension-image": "^3.30.5",
@@ -20,6 +22,7 @@
     "lucide-react": "^1.33.0",
     "next": "16.3.2",
     "qrcode": "^1.5.4",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sweetalert2": "^11.26.25"

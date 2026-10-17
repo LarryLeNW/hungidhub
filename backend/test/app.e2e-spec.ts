@@ -1,14 +1,13 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from './../src/app.module.js';
 import { User } from './../src/users/entities/user.entity.js';
 
 /** Requires the MySQL database from `.env` to be reachable. */
 describe('Auth (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   const email = `e2e-${Date.now()}@example.com`;
   const password = 'Secret@12345';
   let accessToken = '';

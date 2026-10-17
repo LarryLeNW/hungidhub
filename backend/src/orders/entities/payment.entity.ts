@@ -42,7 +42,7 @@ export class Payment extends TimestampedEntity {
   provider: string | null;
 
   /** Bank statement / gateway reference id. */
-  @Index()
+  @Index({ unique: true })
   @Column({
     name: 'transaction_ref',
     type: 'varchar',

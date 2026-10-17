@@ -1,7 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from './../src/app.module.js';
 import { ProductReview } from './../src/catalog/entities/product-review.entity.js';
@@ -12,7 +11,7 @@ import { Report } from './../src/system/entities/report.entity.js';
 
 /** Covers the admin/system endpoints that replaced the last mock data on the client. */
 describe('System, reviews, support, content (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let http: () => request.Agent;
   let adminToken = '';
   const stamp = Date.now();

@@ -18,7 +18,7 @@ describe('Casso webhook verification', () => {
 
   it('accepts a valid V2 HMAC and rejects tampering', () => {
     const secret = 'a-secure-casso-test-key';
-    const timestamp = '1734924830020';
+    const timestamp = String(Date.now());
     // Keys are deliberately supplied out of order; production code must canonicalize them.
     const canonical = {
       data: {
@@ -41,6 +41,13 @@ describe('Casso webhook verification', () => {
         secret,
       ),
     ).toBe(false);
+
+    // Kiểm tra chống Replay Attack (quá 5 phút bị từ chối)
+    const expiredTime = String(Date.now() - 400_000);
+    const expiredSig = createHmac('sha512', secret)
+      .update(`${expiredTime}.${JSON.stringify(canonical)}`)
+      .digest('hex');
+    expect(verifyCassoSignature(`t=${expiredTime},v1=${expiredSig}`, body, secret)).toBe(false);
   });
 
   it('extracts only complete AH order codes', () => {

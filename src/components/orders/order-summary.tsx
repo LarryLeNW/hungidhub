@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Copy, CheckCircle2, KeyRound, Landmark, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { TingTingHelpers } from "@/helpers/TingTingHelpers";
 import { formatDateTime } from "@/lib/dates";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -52,52 +54,61 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function vietQrBankId(bankName: string) {
+const BANK_BINS: Record<string, string> = {
+  bidv: "970418",
+  bidvva: "970418",
+  vietcombank: "970436",
+  vcb: "970436",
+  vietinbank: "970415",
+  viettinbank: "970415",
+  techcombank: "970407",
+  tcb: "970407",
+  mbbank: "970422",
+  mb: "970422",
+  acb: "970416",
+  vpbank: "970432",
+  tpbank: "970423",
+  vib: "970441",
+  sacombank: "970403",
+  shb: "970443",
+  msb: "970426",
+  hdbank: "970437",
+  ocb: "970448",
+  seabank: "970440",
+  eximbank: "970431",
+  namabank: "970428",
+  lienvietpostbank: "970449",
+  lpbank: "970449",
+  wooribank: "970457",
+  shinhan: "970454",
+  agribank: "970405",
+};
+
+export function getBankBin(bankName: string): string {
   const normalized = bankName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
-  const bankIds: Record<string, string> = {
-    acb: "acb",
-    asiacommercialbank: "acb",
-    vietcombank: "vcb",
-    vcb: "vcb",
-    techcombank: "tcb",
-    tcb: "tcb",
-    mbbank: "mb",
-    mb: "mb",
-    bidv: "bidv",
-    vietinbank: "vietinbank",
-    viettinbank: "vietinbank",
-    vpbank: "vpbank",
-    sacombank: "sacombank",
-    tpbank: "tpbank",
-    vib: "vib",
-    msb: "msb",
-    shb: "shb",
-    hdbank: "hdbank",
-    ocb: "ocb",
-    eximbank: "eximbank",
-    seabank: "seabank",
-  };
-
-  return bankIds[normalized] ?? normalized;
+  if (/^\d{6}$/.test(normalized)) return normalized;
+  return BANK_BINS[normalized] ?? "970418";
 }
 
-function vietQrImageUrl(instructions: PaymentInstructions) {
-  const bankId = vietQrBankId(instructions.bankName);
-  const accountNumber = instructions.accountNumber.replace(/\s/g, "");
-  const params = new URLSearchParams({
-    amount: String(Math.round(instructions.amount)),
-    addInfo: instructions.transferContent,
-    accountName: instructions.accountName,
-  });
-
-  return `https://img.vietqr.io/image/${encodeURIComponent(bankId)}-${encodeURIComponent(
-    accountNumber,
-  )}-compact2.png?${params.toString()}`;
+export function generateEmvcoPayload(instructions: PaymentInstructions): string {
+  try {
+    const bin = getBankBin(instructions.bankName);
+    const accountNo = instructions.accountNumber.replace(/\s/g, "");
+    return TingTingHelpers.generateQrCodeEMVCO(
+      Math.round(instructions.amount),
+      bin,
+      accountNo,
+      instructions.transferContent,
+    );
+  } catch (err) {
+    console.error("Lỗi khi sinh chuỗi EMVCo VietQR:", err);
+    return "";
+  }
 }
 
 export function PaymentInstructionsCard({ instructions }: { instructions: PaymentInstructions }) {
@@ -113,7 +124,7 @@ export function PaymentInstructionsCard({ instructions }: { instructions: Paymen
     );
   }
 
-  const qrUrl = vietQrImageUrl(instructions);
+  const qrPayload = useMemo(() => generateEmvcoPayload(instructions), [instructions]);
   const rows: [string, string, boolean?][] = [
     ["Ngân hàng", instructions.bankName],
     ["Số tài khoản", instructions.accountNumber, true],
@@ -128,17 +139,22 @@ export function PaymentInstructionsCard({ instructions }: { instructions: Paymen
         <Landmark size={16} aria-hidden="true" />
         Chuyển khoản để hoàn tất đơn
       </p>
-      <div className="mt-3 flex flex-col items-center gap-3 rounded-md border border-emerald-100 bg-white p-3 text-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={qrUrl}
-          alt={`QR chuyển khoản ${instructions.bankName}`}
-          className="h-52 w-52 rounded-md object-contain"
-          loading="lazy"
-        />
+      <div className="mt-3 flex flex-col items-center gap-3 rounded-md border border-emerald-100 bg-white p-4 text-center">
+        {qrPayload ? (
+          <div className="rounded-lg bg-white p-3 shadow-sm border border-slate-200/80">
+            <QRCodeSVG
+              value={qrPayload}
+              size={210}
+              level="M"
+              includeMargin={false}
+            />
+          </div>
+        ) : (
+          <p className="text-xs text-rose-500">Không thể tạo mã QR ngân hàng</p>
+        )}
         <p className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-emerald-700">
           <QrCode size={14} aria-hidden="true" />
-          Quét QR hoặc chuyển khoản thủ công theo thông tin bên dưới
+          Quét QR bằng app ngân hàng hoặc chuyển khoản theo thông tin bên dưới
         </p>
       </div>
       <dl className="mt-3 space-y-2 text-[13px]">

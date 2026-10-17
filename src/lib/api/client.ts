@@ -1,7 +1,11 @@
 import { getTokens, setTokens, type StoredTokens } from "./token-store";
 
 /** Base URL of the NestJS backend, without trailing slash (e.g. http://localhost:4000/api). */
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api").replace(
+export const API_URL = (
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_URL ?? "/api")
+    : (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api")
+).replace(
   /\/+$/,
   "",
 );

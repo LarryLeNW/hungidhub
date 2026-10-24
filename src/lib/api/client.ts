@@ -146,7 +146,7 @@ async function doRefresh(): Promise<boolean> {
     return true;
   } catch (error) {
     // Offline: keep the session so it can be retried; any HTTP rejection ends the session.
-    if (!(error instanceof ApiError && error.isNetworkError)) {
+    if (error instanceof ApiError && (error.status === 400 || error.status === 401 || error.status === 403)) {
       setTokens(null);
     }
     return false;

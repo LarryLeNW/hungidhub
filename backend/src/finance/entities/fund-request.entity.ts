@@ -98,4 +98,14 @@ export class FundRequest extends TimestampedEntity {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   note: string | null;
+
+  /** Gateway transaction reference ID (e.g. "CASSO:123456") to enforce idempotency. */
+  @Index({ unique: true })
+  @Column({
+    name: 'transaction_ref',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
+  transactionRef: string | null;
 }

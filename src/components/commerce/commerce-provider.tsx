@@ -24,6 +24,7 @@ import {
 import { AccountPanel } from "@/components/auth/account-panel";
 import { LoginForm, RegisterForm } from "@/components/auth/auth-forms";
 import { useAuth, type AuthStatus } from "@/components/auth/auth-provider";
+import { useWallet } from "@/components/wallet/wallet-provider";
 import { OrderSummary } from "@/components/orders/order-summary";
 import type { AuthUser } from "@/lib/api/auth";
 import { ordersApi, type ApiOrder, type PaymentMethod } from "@/lib/api/orders";
@@ -192,14 +193,8 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
   }, [placedOrderCode, placedOrderEmail, placedOrderStatus, router]);
 
-  const effectiveDraft = useMemo<CheckoutDraft>(
-    () => ({
-      ...checkoutDraft,
-      paymentMethod:
-        checkoutDraft.paymentMethod === "wallet" ? "bank_transfer" : checkoutDraft.paymentMethod,
-    }),
-    [checkoutDraft],
-  );
+  const { balance, refreshBalance } = useWallet();
+  const effectiveDraft = checkoutDraft;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -300,6 +295,12 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
       setCheckoutError("Vui lòng đăng nhập hoặc tạo tài khoản để đặt hàng.");
       return;
     }
+    if (effectiveDraft.paymentMethod === "wallet" && balance < subtotal) {
+      setCheckoutError(
+        `Số dư ví AIHUB không đủ để thanh toán. Bạn đang có ${formatCurrency(balance)}, đơn hàng cần ${formatCurrency(subtotal)}. Vui lòng nạp thêm tiền.`,
+      );
+      return;
+    }
     const missing = cart.filter((line) => !line.variantId);
     if (missing.length) {
       setCheckoutError(
@@ -320,12 +321,13 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
       });
       setPlacedOrder(order);
       setCart([]);
+      void refreshBalance();
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : "Không tạo được đơn hàng.");
     } finally {
       setCheckoutPending(false);
     }
-  }, [cart, effectiveDraft, user]);
+  }, [balance, cart, effectiveDraft, refreshBalance, subtotal, user]);
 
   const value = useMemo<CommerceContextValue>(
     () => ({
@@ -402,8 +404,8 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
             aria-label="Đóng"
             onClick={() => setDrawer(null)}
           />
-          <aside className="absolute right-0 top-0 flex h-full w-[70vw] min-w-[270px] max-w-[420px] flex-col bg-white shadow-2xl">
-            <div className="flex h-16 items-center justify-between border-b border-border px-5">
+          <aside className="absolute right-0 top-0 flex h-full w-[88vw] sm:w-[75vw] max-w-[420px] flex-col bg-white shadow-2xl">
+            <div className="flex h-14 sm:h-16 items-center justify-between border-b border-border px-4 sm:px-5">
               <h2 className="inline-flex items-center gap-2 text-lg font-extrabold text-slate-950">
                 {drawer === "cart" ? <ShoppingCart size={20} /> : null}
                 {drawer === "wishlist" ? <Heart size={20} /> : null}
@@ -803,6 +805,8 @@ function CheckoutDrawer({
 }) {
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const isPage = surface === "page";
+  const { balance, openDepositModal } = useWallet();
+  const isWalletShort = balance < subtotal;
 
   if (placedOrder) {
     return (
@@ -878,9 +882,44 @@ function CheckoutDrawer({
     );
   }
 
-  const paymentOptions: [PaymentMethod, string][] = [
-    ["bank_transfer", "Chuyển khoản ACB / QR"],
-    ["zalo", "Liên hệ Zalo để xác nhận"],
+
+
+  const paymentOptions: {
+    value: PaymentMethod;
+    label: string;
+    description: string;
+    extra?: React.ReactNode;
+  }[] = [
+    {
+      value: "wallet",
+      label: "Số dư ví AIHUB",
+      description: `Khả dụng: ${formatCurrency(balance)}${
+        isWalletShort ? ` (Thiếu ${formatCurrency(subtotal - balance)})` : " · Thanh toán tức thì"
+      }`,
+      extra: isWalletShort ? (
+        <button
+          type="button"
+          className="ml-auto inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            openDepositModal();
+          }}
+        >
+          + Nạp thêm tiền
+        </button>
+      ) : null,
+    },
+    {
+      value: "bank_transfer",
+      label: "Chuyển khoản Ngân hàng / VietQR",
+      description: "Tạo mã QR VietQR tự động sau khi đặt đơn.",
+    },
+    {
+      value: "zalo",
+      label: "Liên hệ Zalo để xác nhận",
+      description: "Dùng khi bạn muốn nhân viên xác nhận thủ công qua Zalo.",
+    },
   ];
 
   return (
@@ -915,7 +954,7 @@ function CheckoutDrawer({
         </label>
         <div className="grid gap-2">
           <p className="text-sm font-bold text-slate-800">Phương thức thanh toán</p>
-          {paymentOptions.map(([value, label]) => (
+          {paymentOptions.map(({ value, label, description, extra }) => (
             <label
               key={value}
               className={`flex cursor-pointer items-center gap-3 rounded-[8px] border p-4 text-sm font-bold transition ${
@@ -930,14 +969,20 @@ function CheckoutDrawer({
                 disabled={pending}
                 onChange={() => onChange({ ...draft, paymentMethod: value })}
               />
-              <span>
-                {label}
+              <span className="flex-1">
+                <span className="flex items-center gap-2">
+                  <span>{label}</span>
+                  {value === "wallet" && (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-extrabold text-emerald-800">
+                      Ví AIHUB
+                    </span>
+                  )}
+                </span>
                 <span className="mt-0.5 block text-[12px] font-semibold text-muted">
-                  {value === "bank_transfer"
-                    ? "Tạo mã QR VietQR sau khi đặt đơn."
-                    : "Dùng khi bạn muốn nhân viên xác nhận thủ công qua Zalo."}
+                  {description}
                 </span>
               </span>
+              {extra}
             </label>
           ))}
         </div>
@@ -950,12 +995,18 @@ function CheckoutDrawer({
           </p>
         ) : null}
         <button
-          className="h-12 w-full rounded-md bg-accent font-extrabold text-white disabled:opacity-50"
+          className="h-12 w-full rounded-md bg-accent font-extrabold text-white disabled:opacity-50 cursor-pointer"
           type="button"
-          disabled={pending || !cart.length}
+          disabled={pending || !cart.length || (draft.paymentMethod === "wallet" && isWalletShort)}
           onClick={onSubmit}
         >
-          {pending ? "Đang tạo đơn…" : "Đặt hàng & lấy mã QR"}
+          {pending
+            ? "Đang xử lý…"
+            : draft.paymentMethod === "wallet"
+              ? isWalletShort
+                ? `Số dư không đủ (Thiếu ${formatCurrency(subtotal - balance)})`
+                : "Thanh toán ngay bằng ví AIHUB"
+              : "Đặt hàng & lấy mã QR"}
         </button>
       </div>
     </div>

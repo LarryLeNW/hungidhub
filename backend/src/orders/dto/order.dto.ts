@@ -146,9 +146,25 @@ export class CompleteOrderDto {
 }
 
 export class CancelOrderDto {
+  @ApiPropertyOptional({ default: 'Khách hàng tự hủy' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  reason?: string;
+}
+
+export class CancelLookupDto {
   @ApiProperty()
   @IsString()
-  @MinLength(2)
+  code: string;
+
+  @ApiProperty()
+  @IsEmail()
+  email: string;
+
+  @ApiPropertyOptional({ default: 'Khách hàng tự hủy' })
+  @IsOptional()
+  @IsString()
   @MaxLength(255)
-  reason: string;
+  reason?: string;
 }

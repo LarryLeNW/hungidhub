@@ -18,6 +18,7 @@ import { Role } from '../common/enums/role.enum.js';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard.js';
 import { User } from '../users/entities/user.entity.js';
 import {
+  CancelLookupDto,
   CancelOrderDto,
   CompleteOrderDto,
   ConfirmPaymentDto,
@@ -65,6 +66,24 @@ export class OrdersController {
   @ApiBearerAuth()
   mineDetail(@CurrentUser('id') userId: number, @Param('code') code: string) {
     return this.orders.findMine(userId, code.toUpperCase().replace(/^#/, ''));
+  }
+
+  @Post('me/:code/cancel')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Khách hủy đơn đang chờ thanh toán' })
+  cancelMine(
+    @CurrentUser('id') userId: number,
+    @Param('code') code: string,
+    @Body() dto?: CancelOrderDto,
+  ) {
+    return this.orders.cancelMine(userId, code.toUpperCase().replace(/^#/, ''), dto?.reason);
+  }
+
+  @Public()
+  @Post('lookup/cancel')
+  @ApiOperation({ summary: 'Khách hủy đơn bằng mã đơn + email' })
+  cancelLookup(@Body() dto: CancelLookupDto) {
+    return this.orders.cancelByLookup(dto.code, dto.email, dto.reason);
   }
 }
 
@@ -115,7 +134,7 @@ export class AdminOrdersController {
     @CurrentUser('id') adminId: number,
     @Body() dto: CancelOrderDto,
   ) {
-    return this.orders.cancel(id, adminId, dto.reason);
+    return this.orders.cancel(id, adminId, dto.reason || 'Quản trị viên hủy');
   }
 
   @Post(':id/refund')
@@ -124,6 +143,6 @@ export class AdminOrdersController {
     @CurrentUser('id') adminId: number,
     @Body() dto: CancelOrderDto,
   ) {
-    return this.orders.refund(id, adminId, dto.reason);
+    return this.orders.refund(id, adminId, dto.reason || 'Quản trị viên hoàn tiền');
   }
 }

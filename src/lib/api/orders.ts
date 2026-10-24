@@ -112,4 +112,17 @@ export const ordersApi = {
     apiFetch<Paginated<ApiOrder>>(`/orders/me${buildQuery(params)}`),
 
   getMine: (code: string) => apiFetch<ApiOrder>(`/orders/me/${encodeURIComponent(code)}`),
+
+  cancelMine: (code: string, reason: string = "Khách hàng tự hủy") =>
+    apiFetch<ApiOrder>(`/orders/me/${encodeURIComponent(code)}/cancel`, {
+      method: "POST",
+      body: { reason },
+    }),
+
+  cancelLookup: (code: string, email: string, reason: string = "Khách hàng tự hủy") =>
+    apiFetch<ApiOrder>("/orders/lookup/cancel", {
+      method: "POST",
+      body: { code, email, reason },
+      auth: false,
+    }),
 };

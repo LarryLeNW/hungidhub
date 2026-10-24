@@ -42,7 +42,8 @@ export class AnalyticsService implements OnApplicationBootstrap {
 
     // React development mode and rapid refreshes can fire twice. Keep only one
     // view for the same session/path in a five-second window.
-    await this.dataSource.query(
+    try {
+      await this.dataSource.query(
       `INSERT INTO traffic_page_views (session_id, path, referrer, user_agent)
        SELECT ?, ?, ?, ? FROM DUAL
        WHERE NOT EXISTS (
@@ -57,7 +58,10 @@ export class AnalyticsService implements OnApplicationBootstrap {
         input.sessionId,
         input.path,
       ],
-    );
+      );
+    } catch (err) {
+      this.logger.debug?.(String(err));
+    }
   }
 
   async overview(): Promise<TrafficStats> {

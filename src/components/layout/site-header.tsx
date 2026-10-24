@@ -27,12 +27,14 @@ import {
   ShoppingCart,
   Tags,
   UserRound,
+  Wallet,
   Wrench,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { IdhubLogo } from "@/components/Idhub-logo";
 import { useCommerce } from "@/components/commerce/commerce-provider";
+import { useWallet } from "@/components/wallet/wallet-provider";
 import { catalogApi, type ApiCategory, type ApiProduct } from "@/lib/api/catalog";
 import { phoneHref, type PublicSettings } from "@/lib/api/settings";
 import { formatCurrency } from "@/lib/format";
@@ -82,6 +84,7 @@ type SiteHeaderProps = {
 
 export function SiteHeader({ categories, settings }: SiteHeaderProps) {
   const commerce = useCommerce();
+  const { balance, openDepositModal } = useWallet();
   const pathname = usePathname();
   const hotline = settings["store.hotline"] ?? "0931 729 316";
   const categoryMenuItems = categories
@@ -233,15 +236,28 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
               tagline={settings["store.tagline"] ?? "Tài khoản số giá tốt"}
               className="focus-ring absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             />
-            <button
-              className="focus-ring grid size-10 place-items-center text-slate-950"
-              type="button"
-              aria-label="Tài khoản"
-              title="Tài khoản"
-              onClick={commerce.openAccount}
-            >
-              <UserRound size={24} aria-hidden="true" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {commerce.user ? (
+                <button
+                  type="button"
+                  className="focus-ring flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-800"
+                  title="Số dư ví AIHUB - Click để nạp"
+                  onClick={openDepositModal}
+                >
+                  <Wallet size={12} className="text-primary" />
+                  <span>{formatCurrency(balance)}</span>
+                </button>
+              ) : null}
+              <button
+                className="focus-ring grid size-10 place-items-center text-slate-950"
+                type="button"
+                aria-label="Tài khoản"
+                title="Tài khoản"
+                onClick={commerce.openAccount}
+              >
+                <UserRound size={24} aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <div className="bg-[#eaf8ef] px-4 py-2">
             <SearchBox compact />
@@ -425,6 +441,17 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
               </div>
 
               <div className="flex items-center gap-2">
+                {commerce.user ? (
+                  <button
+                    type="button"
+                    className="focus-ring flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-[12px] font-extrabold text-emerald-800 shadow-sm hover:bg-emerald-100/70 transition cursor-pointer"
+                    title="Số dư ví AIHUB - Bấm để nạp tiền"
+                    onClick={openDepositModal}
+                  >
+                    <Wallet size={14} className="text-primary" />
+                    <span>{formatCurrency(balance)}</span>
+                  </button>
+                ) : null}
                 <HeaderIconButton label="Tài khoản" onClick={commerce.openAccount}>
                   <UserRound size={22} aria-hidden="true" />
                 </HeaderIconButton>
@@ -443,9 +470,6 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
                 >
                   <ShoppingCart size={22} aria-hidden="true" />
                 </HeaderIconButton>
-                <span className="text-[13px] font-extrabold text-slate-700">
-                  {formatCurrency(commerce.subtotal)}
-                </span>
               </div>
             </div>
           </div>

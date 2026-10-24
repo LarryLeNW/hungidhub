@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return profile;
     } catch (error) {
       // A rejected session is already cleared by apiFetch; only keep tokens when offline.
-      if (error instanceof ApiError && !error.isNetworkError) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
         setTokens(null);
       }
       setUser(null);

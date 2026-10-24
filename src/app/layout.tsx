@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { WalletProvider } from "@/components/wallet/wallet-provider";
 import { CommerceProvider } from "@/components/commerce/commerce-provider";
 import { SiteShell } from "@/components/layout/site-shell";
 import { siteConfig } from "@/config/site";
@@ -43,9 +44,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full bg-background text-foreground">
         <AuthProvider>
-          <CommerceProvider>
-            <SiteShell>{children}</SiteShell>
-          </CommerceProvider>
+          <WalletProvider>
+            <CommerceProvider>
+              <SiteShell>{children}</SiteShell>
+            </CommerceProvider>
+          </WalletProvider>
         </AuthProvider>
       </body>
     </html>

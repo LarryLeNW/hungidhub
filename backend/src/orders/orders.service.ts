@@ -42,28 +42,14 @@ import {
   PaymentStatus,
 } from './orders.enums.js';
 
-export type BankInfo = {
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
-};
+import { BankInfo, DEFAULT_BANK_INFO, getBankInfo } from '../common/utils/bank-info.js';
+export type { BankInfo };
+export { DEFAULT_BANK_INFO, getBankInfo };
 
 type OrderCustomerSnapshot = {
   name: string;
   phone: string;
   email: string;
-};
-
-export const DEFAULT_BANK_INFO: BankInfo = {
-  bankName: process.env.BANK_NAME || 'BIDV',
-  accountNumber: (
-    process.env.BANK_ACCOUNT_NUMBER ||
-    process.env.CASSO_ACCOUNT_NUMBER ||
-    'V3CASS111'
-  )
-    .split(',')[0]
-    .trim(),
-  accountName: process.env.BANK_ACCOUNT_NAME || 'AIHUB',
 };
 
 export type PaymentInstructions = BankInfo & {
@@ -215,6 +201,7 @@ export class OrdersService {
           orderId: created.id,
           description: `Thanh toán đơn ${created.code}`,
         });
+        const paidAt = new Date();
         await manager.save(
           manager.create(Payment, {
             orderId: created.id,
@@ -222,18 +209,75 @@ export class OrdersService {
             amount: total,
             status: PaymentStatus.Paid,
             provider: 'AIHUB',
-            paidAt: new Date(),
+            paidAt,
             walletTransactionId: transaction.id,
           }),
         );
-        await manager.update(
-          Order,
-          { id: created.id },
-          {
-            status: OrderStatus.Processing,
-            paidAt: new Date(),
-          },
-        );
+
+        let canAutoComplete = lines.length > 0;
+        for (const line of lines) {
+          if (line.variant.deliveryType !== DeliveryType.Auto) {
+            canAutoComplete = false;
+            break;
+          }
+          const available = await this.inventory.countAvailable(line.variant.id, manager);
+          if (available < line.quantity) {
+            canAutoComplete = false;
+            break;
+          }
+        }
+
+        if (canAutoComplete) {
+          const items = await manager.find(OrderItem, {
+            where: { orderId: created.id },
+            relations: { variant: true, product: true },
+          });
+          for (const item of items) {
+            await this.inventory.deliverForOrderItem(
+              manager,
+              item.variantId!,
+              item.id,
+              item.quantity,
+              user.id,
+            );
+            const warrantyDays =
+              item.variant?.warrantyDays ?? item.product?.warrantyDays ?? null;
+            item.deliveryStatus = OrderItemDeliveryStatus.Delivered;
+            item.deliveredAt = paidAt;
+            item.warrantyUntil = warrantyDays
+              ? new Date(paidAt.getTime() + warrantyDays * 86_400_000)
+              : null;
+            await manager.save(item);
+
+            if (item.productId) {
+              await manager.increment(
+                Product,
+                { id: item.productId },
+                'soldCount',
+                item.quantity,
+              );
+            }
+          }
+
+          await manager.update(
+            Order,
+            { id: created.id },
+            {
+              status: OrderStatus.Completed,
+              paidAt,
+              completedAt: paidAt,
+            },
+          );
+        } else {
+          await manager.update(
+            Order,
+            { id: created.id },
+            {
+              status: OrderStatus.Processing,
+              paidAt,
+            },
+          );
+        }
       } else {
         await manager.save(
           manager.create(Payment, {
@@ -257,12 +301,14 @@ export class OrdersService {
     await this.notifications.notifyAdmins({
       title: `Có đơn hàng mới #${order.code}`,
       body: `${order.customerName} · ${order.total.toLocaleString('vi-VN')}đ · ${
-        order.status === OrderStatus.Processing
-          ? 'đã thanh toán bằng ví'
-          : 'chờ thanh toán'
+        order.status === OrderStatus.Completed
+          ? 'đã thanh toán bằng ví & tự động xuất kho'
+          : order.status === OrderStatus.Processing
+            ? 'đã thanh toán bằng ví (chờ giao hàng)'
+            : 'chờ thanh toán'
       }`,
       section: NotificationSection.Orders,
-      tone: NotificationTone.Cyan,
+      tone: order.status === OrderStatus.Completed ? NotificationTone.Green : NotificationTone.Cyan,
       entityType: 'order',
       entityId: order.id,
     });
@@ -327,16 +373,7 @@ export class OrdersService {
   }
 
   async paymentInstructions(order: Order): Promise<PaymentInstructions> {
-    const bank: BankInfo = {
-      bankName: process.env.BANK_NAME || DEFAULT_BANK_INFO.bankName,
-      accountNumber:
-        (process.env.BANK_ACCOUNT_NUMBER ||
-          process.env.CASSO_ACCOUNT_NUMBER ||
-          DEFAULT_BANK_INFO.accountNumber)
-          .split(',')[0]
-          .trim(),
-      accountName: process.env.BANK_ACCOUNT_NAME || DEFAULT_BANK_INFO.accountName,
-    };
+    const bank = getBankInfo();
     return {
       method: order.paymentMethod,
       amount: order.total,
@@ -363,25 +400,92 @@ export class OrdersService {
   }
 
   async listMine(userId: number, query: QueryOrdersDto) {
-    const [items, total] = await this.orders.findAndCount({
-      where: { userId, ...(query.status ? { status: query.status } : {}) },
-      relations: { items: true },
-      order: { id: 'DESC' },
-      skip: query.skip,
-      take: query.limit,
-    });
+    const user = await this.dataSource.getRepository(User).findOne({ where: { id: userId } });
+    const userEmail = user?.email?.toLowerCase().trim();
+
+    const qb = this.orders
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.items', 'item')
+      .where(
+        userEmail
+          ? '(order.userId = :userId OR LOWER(order.customerEmail) = :userEmail)'
+          : 'order.userId = :userId',
+        { userId, userEmail },
+      )
+      .orderBy('order.id', 'DESC')
+      .skip(query.skip)
+      .take(query.limit);
+
+    if (query.status) {
+      qb.andWhere('order.status = :status', { status: query.status });
+    }
+
+    const [items, total] = await qb.getManyAndCount();
     return paginate(items, total, query);
   }
 
   async findMine(userId: number, code: string) {
-    const order = await this.orders.findOne({
-      where: { code, userId },
-      relations: ORDER_RELATIONS,
-    });
+    const user = await this.dataSource.getRepository(User).findOne({ where: { id: userId } });
+    const userEmail = user?.email?.toLowerCase().trim();
+
+    const qb = this.orders
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.items', 'item')
+      .leftJoinAndSelect('item.inventoryItems', 'inventoryItem')
+      .leftJoinAndSelect('order.payments', 'payment')
+      .where('order.code = :code', { code })
+      .andWhere(
+        userEmail
+          ? '(order.userId = :userId OR LOWER(order.customerEmail) = :userEmail)'
+          : 'order.userId = :userId',
+        { userId, userEmail },
+      );
+
+    const order = await qb.getOne();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
     return this.withInstructions(order);
+  }
+
+  async cancelMine(userId: number, code: string, reason?: string) {
+    const user = await this.dataSource.getRepository(User).findOne({ where: { id: userId } });
+    const userEmail = user?.email?.toLowerCase().trim();
+
+    const qb = this.orders
+      .createQueryBuilder('order')
+      .where('order.code = :code', { code })
+      .andWhere(
+        userEmail
+          ? '(order.userId = :userId OR LOWER(order.customerEmail) = :userEmail)'
+          : 'order.userId = :userId',
+        { userId, userEmail },
+      );
+
+    const order = await qb.getOne();
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng');
+    }
+    if (order.status !== OrderStatus.PendingPayment) {
+      throw new BadRequestException('Chỉ có thể hủy đơn hàng khi đang chờ thanh toán');
+    }
+    return this.cancel(order.id, userId, reason || 'Khách hàng tự hủy');
+  }
+
+  async cancelByLookup(code: string, email: string, reason?: string) {
+    const order = await this.orders.findOne({
+      where: {
+        code: code.toUpperCase().replace(/^#/, ''),
+        customerEmail: email.toLowerCase().trim(),
+      },
+    });
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng với mã và email này');
+    }
+    if (order.status !== OrderStatus.PendingPayment) {
+      throw new BadRequestException('Chỉ có thể hủy đơn hàng khi đang chờ thanh toán');
+    }
+    return this.cancel(order.id, order.userId ?? 0, reason || 'Khách hàng tự hủy');
   }
 
   private async withInstructions(order: Order) {

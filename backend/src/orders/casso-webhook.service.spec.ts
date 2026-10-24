@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import {
+  fundRequestCodesFromDescription,
   orderCodesFromDescription,
   verifyCassoSignature,
   type CassoWebhookBody,
@@ -53,5 +54,11 @@ describe('Casso webhook verification', () => {
   it('extracts only complete AH order codes', () => {
     expect(orderCodesFromDescription('AIHUB AH10042 KH7 ah10042')).toEqual(['AH10042']);
     expect(orderCodesFromDescription('XAH10042 and AH12Z')).toEqual([]);
+  });
+
+  it('extracts YC fund request codes correctly', () => {
+    expect(fundRequestCodesFromDescription('NAP YC-3001')).toEqual(['YC-3001']);
+    expect(fundRequestCodesFromDescription('AIHUB NAP YC3005')).toEqual(['YC-3005']);
+    expect(fundRequestCodesFromDescription('Chuyen tien khong ma')).toEqual([]);
   });
 });

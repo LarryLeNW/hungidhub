@@ -122,6 +122,17 @@ export class WalletController {
     return this.wallets.listFundRequests(query, { userId });
   }
 
+  @Get('fund-requests/:id')
+  @ApiOperation({
+    summary: 'Get details and payment instructions of a fund request',
+  })
+  myFundRequest(
+    @CurrentUser('id') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.wallets.getFundRequest(userId, id);
+  }
+
   @Post('fund-requests')
   @ApiOperation({
     summary: 'Request a deposit (returns transfer memo) or a withdrawal',

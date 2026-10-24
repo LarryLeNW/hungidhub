@@ -6,11 +6,20 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { DataSource } from 'typeorm';
+import { DataSource, Like } from 'typeorm';
 import { EnvironmentVariables, NodeEnv } from '../config/env.validation.js';
 import { DeliveryType } from '../catalog/catalog.enums.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { InventoryService } from '../catalog/inventory.service.js';
+import { FundRequest } from '../finance/entities/fund-request.entity.js';
+import { WalletTransaction } from '../finance/entities/wallet-transaction.entity.js';
+import {
+  FundRequestStatus,
+  FundRequestType,
+  TransactionChannel,
+  WalletTransactionType,
+} from '../finance/finance.enums.js';
+import { WalletsService, LedgerEntry } from '../finance/wallets.service.js';
 import { NotificationsService } from '../system/notifications.service.js';
 import { NotificationSection, NotificationTone } from '../system/system.enums.js';
 import { OrderItem } from './entities/order-item.entity.js';
@@ -114,6 +123,18 @@ export function orderCodesFromDescription(description: string) {
   return [...new Set(matches.map((value) => /AH\d+/.exec(value)?.[0]).filter((value): value is string => Boolean(value)))];
 }
 
+export function fundRequestCodesFromDescription(description: string) {
+  const matches = description.toUpperCase().match(/(?:^|[^A-Z0-9])(YC-?\d+)(?=$|[^A-Z0-9])/g) ?? [];
+  return [
+    ...new Set(
+      matches
+        .map((value) => /YC-?\d+/.exec(value)?.[0])
+        .filter((value): value is string => Boolean(value))
+        .map((code) => (code.includes('-') ? code : code.replace('YC', 'YC-'))),
+    ),
+  ];
+}
+
 @Injectable()
 export class CassoWebhookService {
   private readonly logger = new Logger(CassoWebhookService.name);
@@ -123,6 +144,7 @@ export class CassoWebhookService {
     private readonly dataSource: DataSource,
     private readonly inventory: InventoryService,
     private readonly notifications: NotificationsService,
+    private readonly wallets: WalletsService,
   ) {}
 
   async handle(body: CassoWebhookBody, headers: { signature?: string; secureToken?: string }) {
@@ -141,26 +163,25 @@ export class CassoWebhookService {
     }
 
     if (!isAuthorized) {
-      if (isDev) {
-        if (headers.signature) {
-          this.logger.warn(
-            `Casso webhook: Chữ ký HMAC từ header X-Casso-Signature không khớp với CASSO_WEBHOOK_SECRET ('${secret}'). Cho phép vượt qua ở môi trường Development để test/kích hoạt kết nối.`,
-          );
-        } else {
-          this.logger.warn(
-            `Casso webhook: Token nhận được ('${headers.secureToken ?? 'trống'}') khác với CASSO_WEBHOOK_SECRET ('${secret ?? 'chưa cấu hình'}'). Cho phép vượt qua ở môi trường Development để test/kích hoạt kết nối.`,
-          );
-        }
-      } else {
-        if (!secret) {
-          this.logger.error('Webhook Casso chưa được cấu hình biến CASSO_WEBHOOK_SECRET trong .env');
-          throw new ServiceUnavailableException('Webhook Casso chưa được cấu hình');
-        }
+      // Cho phép test event (data rỗng) vượt qua để Casso kết nối thử ban đầu
+      if (!body.data || (Array.isArray(body.data) && body.data.length === 0)) {
+        this.logger.log('Casso test webhook ping nhận thành công (dữ liệu kiểm tra kết nối)');
+        return { error: 0, success: true, message: 'Test connection successful', matched: 0, ignored: 0 };
+      }
+
+      // Có dữ liệu giao dịch thật: BẮT BUỘC phải xác thực hợp lệ nếu CASSO_WEBHOOK_SECRET đã cấu hình
+      if (secret) {
         if (headers.signature) {
           throw new UnauthorizedException('Chữ ký webhook Casso không hợp lệ');
         }
         throw new UnauthorizedException('Mã bảo mật webhook Casso không hợp lệ');
       }
+
+      if (!isDev) {
+        this.logger.error('Webhook Casso chưa được cấu hình biến CASSO_WEBHOOK_SECRET trong .env');
+        throw new ServiceUnavailableException('Webhook Casso chưa được cấu hình');
+      }
+      this.logger.warn('Casso webhook: CASSO_WEBHOOK_SECRET chưa được cấu hình ở môi trường dev.');
     }
 
     if (!body || Number(body.error) !== 0) {
@@ -225,11 +246,78 @@ export class CassoWebhookService {
     }
 
     const codes = orderCodesFromDescription(transaction.description ?? '');
-    if (!codes.length) return false;
+    const fundRequestCodes = fundRequestCodesFromDescription(transaction.description ?? '');
+    if (!codes.length && !fundRequestCodes.length) return false;
     const transactionRef = `CASSO:${String(transaction.id)}`.slice(0, 120);
 
     return this.dataSource.transaction(async (manager) => {
       if (await manager.findOne(Payment, { where: { transactionRef } })) return false;
+      if (await manager.findOne(FundRequest, { where: { transactionRef } })) return false;
+      const alreadyFunded = await manager.findOne(WalletTransaction, {
+        where: { description: Like(`%${transactionRef}%`) },
+      });
+      if (alreadyFunded) return false;
+
+      // Xử lý nạp tiền vào ví nếu có mã yêu cầu nạp YC...
+      if (fundRequestCodes.length > 0) {
+        const fundRequest = await manager.createQueryBuilder(FundRequest, 'req')
+          .setLock('pessimistic_write')
+          .where('req.code IN (:...fundRequestCodes)', { fundRequestCodes })
+          .andWhere('req.status = :status', { status: FundRequestStatus.Pending })
+          .andWhere('req.type = :type', { type: FundRequestType.Deposit })
+          .getOne();
+
+        if (fundRequest) {
+          if (amount < fundRequest.amount) {
+            this.logger.warn(
+              `Casso: Yêu cầu nạp #${fundRequest.code} chuyển thiếu tiền (cần ${fundRequest.amount}đ, nhận ${amount}đ). Giao dịch: ${transactionRef}`,
+            );
+            void this.notifications.notifyAdmins({
+              title: `Yêu cầu nạp #${fundRequest.code} chuyển thiếu tiền`,
+              body: `Cần nạp ${fundRequest.amount.toLocaleString('vi-VN')}đ nhưng chuyển ${amount.toLocaleString('vi-VN')}đ qua Casso.`,
+              section: NotificationSection.Deposits,
+              tone: NotificationTone.Amber,
+              entityType: 'fund_request',
+              entityId: fundRequest.id,
+            });
+            return false;
+          }
+
+          const entry: LedgerEntry = {
+            type: WalletTransactionType.Deposit,
+            channel: TransactionChannel.BankTransfer,
+            fundRequestId: fundRequest.id,
+            description: `Nạp tiền ${fundRequest.code} tự động qua Casso (${transactionRef})`,
+          };
+          await this.wallets.credit(manager, fundRequest.userId, amount, entry);
+
+          fundRequest.transactionRef = transactionRef;
+          fundRequest.status = FundRequestStatus.Completed;
+          fundRequest.reviewedAt = new Date();
+          fundRequest.note = `Tự động duyệt qua Casso (${transactionRef})`;
+          if (amount > fundRequest.amount) {
+            fundRequest.amount = amount;
+          }
+          await manager.save(fundRequest);
+
+          this.logger.log(
+            `Casso đã xác nhận và nạp ${amount}đ cho yêu cầu #${fundRequest.code} (user #${fundRequest.userId})`,
+          );
+
+          void this.notifications.notifyAdmins({
+            title: `Nạp tiền thành công #${fundRequest.code}`,
+            body: `Đã cộng ${amount.toLocaleString('vi-VN')}đ vào ví người dùng #${fundRequest.userId} qua Casso.`,
+            section: NotificationSection.Deposits,
+            tone: NotificationTone.Green,
+            entityType: 'fund_request',
+            entityId: fundRequest.id,
+          });
+
+          return true;
+        }
+      }
+
+      if (!codes.length) return false;
 
       const order = await manager.createQueryBuilder(Order, 'order')
         .setLock('pessimistic_write')

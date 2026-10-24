@@ -17,6 +17,7 @@ import {
 import { FundRequest } from './entities/fund-request.entity.js';
 import { WalletTransaction } from './entities/wallet-transaction.entity.js';
 import { Wallet } from './entities/wallet.entity.js';
+import { BankInfo, getBankInfo } from '../common/utils/bank-info.js';
 import {
   FundRequestStatus,
   FundRequestType,
@@ -24,6 +25,12 @@ import {
   WalletTransactionStatus,
   WalletTransactionType,
 } from './finance.enums.js';
+
+export type DepositPaymentInstructions = BankInfo & {
+  amount: number;
+  transferContent: string;
+  code: string;
+};
 
 export type LedgerEntry = {
   type: WalletTransactionType;
@@ -216,8 +223,38 @@ export class WalletsService {
           entityType: 'fund_request',
           entityId: request.id,
         });
-        return request;
+        return {
+          ...request,
+          paymentInstructions: this.depositPaymentInstructions(request),
+        };
       });
+  }
+
+  depositPaymentInstructions(request: FundRequest): DepositPaymentInstructions | null {
+    if (request.type !== FundRequestType.Deposit || request.status !== FundRequestStatus.Pending) {
+      return null;
+    }
+    const bank = getBankInfo();
+    return {
+      ...bank,
+      amount: request.amount,
+      transferContent: request.transferContent || `NAP ${request.code}`,
+      code: request.code,
+    };
+  }
+
+  async getFundRequest(userId: number, id: number) {
+    const request = await this.fundRequests.findOne({
+      where: { id, userId },
+      relations: { user: true },
+    });
+    if (!request) {
+      throw new NotFoundException(`Không tìm thấy yêu cầu #${id}`);
+    }
+    return {
+      ...request,
+      paymentInstructions: this.depositPaymentInstructions(request),
+    };
   }
 
   /** Admin "Giao dịch": the full wallet ledger with the account owner. */

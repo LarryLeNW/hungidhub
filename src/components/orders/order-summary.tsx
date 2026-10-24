@@ -112,6 +112,11 @@ export function generateEmvcoPayload(instructions: PaymentInstructions): string 
 }
 
 export function PaymentInstructionsCard({ instructions }: { instructions: PaymentInstructions }) {
+  const qrPayload = useMemo(
+    () => (instructions.method === "zalo" ? "" : generateEmvcoPayload(instructions)),
+    [instructions],
+  );
+
   if (instructions.method === "zalo") {
     return (
       <div className="rounded-md border border-sky-200 bg-sky-50 p-4 text-[13px] leading-6 text-slate-700">
@@ -123,8 +128,6 @@ export function PaymentInstructionsCard({ instructions }: { instructions: Paymen
       </div>
     );
   }
-
-  const qrPayload = useMemo(() => generateEmvcoPayload(instructions), [instructions]);
   const rows: [string, string, boolean?][] = [
     ["Ngân hàng", instructions.bankName],
     ["Số tài khoản", instructions.accountNumber, true],

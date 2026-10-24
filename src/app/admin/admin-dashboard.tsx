@@ -499,7 +499,7 @@ function Overview({
   const quickActions = [
     { label: "Thêm sản phẩm", detail: "Nhập kho, giá bán, biến thể", icon: Plus, id: "products" as ModuleId },
     { label: "Quản lý danh mục", detail: "Cây danh mục, thứ tự, icon menu", icon: Tags, id: "categories" as ModuleId },
-    { label: "Hỗ trợ khách", detail: stats ? `${stats.badges.support} phiếu đang mở` : "…", icon: Headphones, id: "support" as ModuleId },
+    { label: "Quản lý đơn hàng", detail: stats ? `${stats.badges.orders} đơn cần xử lý` : "Xem và xử lý đơn hàng", icon: ShoppingCart, id: "orders" as ModuleId },
     { label: "Cài đặt cửa hàng", detail: "Thông tin liên hệ, thanh toán, trang chủ", icon: Settings, id: "settings" as ModuleId },
   ];
 
@@ -616,19 +616,7 @@ function Overview({
 
         <div className={styles.sideStack}>
           <article className={styles.panel}>
-            <div className={styles.panelHeader}><div><h2>Cảnh báo kho</h2><p>SKU giao tự động dưới ngưỡng</p></div><button className={styles.iconButton} onClick={() => onNavigate("products")} aria-label="Xem sản phẩm"><ChevronRight size={17} /></button></div>
-            <div className={styles.alertList}>
-              {stats?.lowStock.length ? stats.lowStock.map((item) => (
-                <button key={item.variantId} onClick={() => onOpenProduct(item.productId)}>
-                  <span className={styles[item.available === 0 ? "danger" : "warning"]}><AlertTriangle size={16} /></span>
-                  <div><strong>{item.productName}</strong><small>{item.sku} · {item.available === 0 ? "Đã hết hàng" : `Còn ${item.available} / ngưỡng ${item.threshold}`}</small></div>
-                  <ChevronRight size={15} />
-                </button>
-              )) : <p className={styles.emptyNote}>{stats ? "Không có SKU nào dưới ngưỡng." : "Đang tải…"}</p>}
-            </div>
-          </article>
-          <article className={styles.panel}>
-            <div className={styles.panelHeader}><div><h2>Hoạt động gần đây</h2><p>Đơn, hỗ trợ, khách mới</p></div></div>
+            <div className={styles.panelHeader}><div><h2>Hoạt động gần đây</h2><p>Đơn hàng, nạp tiền, khách mới</p></div></div>
             <div className={styles.activityList}>
               {stats?.recentActivity.length ? stats.recentActivity.map((item, index) => {
                 const meta = activityIcon[item.type];

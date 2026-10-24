@@ -91,8 +91,8 @@ export function ContentBlockForm({ blockId, onClose, onSaved }: { blockId?: numb
 
   return (
     <AdminModal
-      eyebrow={isEdit ? "NỘI DUNG" : "TẠO MỚI"}
-      title={isEdit ? `Sửa: ${title || "…"}` : "Tạo nội dung"}
+      eyebrow={isEdit ? "BANNER" : "TẠO MỚI"}
+      title={isEdit ? `Sửa: ${title || "…"}` : "Tạo Banner"}
       onClose={onClose}
       loading={loading}
       footer={

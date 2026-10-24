@@ -123,7 +123,7 @@ const navGroups: { label: string; items: { id: ModuleId; label: string; icon: Lu
     items: [
       { id: "traffic", label: "Traffic", icon: BarChart3 },
       { id: "posts", label: "Blog", icon: FileText },
-      { id: "content", label: "Nội dung", icon: SlidersHorizontal },
+      { id: "content", label: "Banner", icon: SlidersHorizontal },
       { id: "reviews", label: "Đánh giá", icon: Star },
     ],
   },
@@ -267,10 +267,10 @@ const moduleDefinitions: Record<ModuleSection, ModuleDefinition> = {
     ],
   },
   content: {
-    title: "Quản lý nội dung",
+    title: "Quản lý Banner",
     description: "Banner, thông báo hệ thống và bài trợ giúp trên cửa hàng.",
     icon: SlidersHorizontal,
-    createLabel: "Tạo nội dung",
+    createLabel: "Tạo Banner",
     columns: [
       { key: "id", label: "Mã" },
       { key: "title", label: "Nội dung" },

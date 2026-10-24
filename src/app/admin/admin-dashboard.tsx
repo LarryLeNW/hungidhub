@@ -127,12 +127,16 @@ const navGroups: { label: string; items: { id: ModuleId; label: string; icon: Lu
       { id: "reviews", label: "Đánh giá", icon: Star },
     ],
   },
+  {
+    label: "Hệ thống",
+    items: [{ id: "settings", label: "Cài đặt cửa hàng", icon: Settings }],
+  },
 ];
 
 /** System modules live in the profile dropdown (topbar) instead of the sidebar. */
 const profileMenuItems: { id: ModuleId; label: string; icon: LucideIcon; badge?: keyof AdminStats["badges"]; hidden?: boolean }[] = [
   // Ẩn theo yêu cầu (01/09/2026) — bỏ `hidden` để mở lại; /admin/settings vẫn truy cập được qua URL.
-  { id: "settings", label: "Cài đặt", icon: Settings, hidden: true },
+  { id: "settings", label: "Cài đặt cửa hàng", icon: Settings },
 ];
 
 /** Column layout per module; rows come from `admin-data.ts` (API). */
@@ -337,7 +341,7 @@ const moduleDefinitions: Record<ModuleSection, ModuleDefinition> = {
     ],
   },
   settings: {
-    title: "Cài đặt hệ thống",
+    title: "Cài đặt cửa hàng",
     description: "Cấu hình cửa hàng, thanh toán, thông báo và tích hợp (lưu trong bảng settings).",
     icon: Settings,
     columns: [

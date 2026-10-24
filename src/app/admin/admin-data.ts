@@ -416,6 +416,7 @@ function reportToRow(report: AdminReport): DataRow {
 }
 
 function settingToRow(setting: AdminSetting): DataRow {
+  const isReadOnly = setting.key === "payment.bank";
   const preview =
     typeof setting.value === "string" || typeof setting.value === "number"
       ? String(setting.value)
@@ -427,11 +428,13 @@ function settingToRow(setting: AdminSetting): DataRow {
   return {
     id: setting.key,
     _ref: String(setting.id),
-    description: setting.description ?? "—",
+    description: isReadOnly
+      ? `${setting.description ?? "Tài khoản nhận chuyển khoản"} (Cố định)`
+      : (setting.description ?? "—"),
     group: settingGroupLabels[setting.group],
     value: preview,
     updated: formatDateTime(setting.updatedAt),
-    status: setting.isPublic ? "Công khai" : "Nội bộ",
+    status: isReadOnly ? "Cố định" : setting.isPublic ? "Công khai" : "Nội bộ",
   };
 }
 

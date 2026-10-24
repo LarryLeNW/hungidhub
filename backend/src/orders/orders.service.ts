@@ -375,14 +375,7 @@ export class OrdersService {
   }
 
   async paymentInstructions(order: Order): Promise<PaymentInstructions> {
-    const bankSetting = await this.settings.findOneBy({ key: 'payment.bank' });
-    const bankVal = bankSetting?.value as Partial<BankInfo> | undefined;
-    const defaultBank = getBankInfo();
-    const bank: BankInfo = {
-      bankName: bankVal?.bankName || defaultBank.bankName,
-      accountNumber: bankVal?.accountNumber || defaultBank.accountNumber,
-      accountName: bankVal?.accountName || defaultBank.accountName,
-    };
+    const bank = getBankInfo();
     const hotlineSetting = await this.settings.findOneBy({ key: 'store.hotline' });
     const zaloSetting = await this.settings.findOneBy({ key: 'store.zalo' });
     const hotline = (hotlineSetting?.value as string) || '0931 729 316';

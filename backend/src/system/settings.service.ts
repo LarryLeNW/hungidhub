@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -259,6 +260,11 @@ export class SettingsService implements OnApplicationBootstrap {
     },
     updatedById: number,
   ) {
+    if (key === 'payment.bank') {
+      throw new BadRequestException(
+        'Thông tin tài khoản ngân hàng được cấu hình cố định theo hệ thống và không cho phép chỉnh sửa.',
+      );
+    }
     const existing = await this.settings.findOneBy({ key });
     if (!existing && !input.group) {
       throw new NotFoundException(

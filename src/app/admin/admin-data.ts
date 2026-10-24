@@ -469,7 +469,9 @@ async function fetchRows(section: ModuleSection): Promise<DataRow[]> {
     case "reports":
       return (await adminApi.listReports({ limit: 100 })).items.map(reportToRow);
     case "settings":
-      return (await adminApi.listSettings()).map(settingToRow);
+      return (await adminApi.listSettings())
+        .filter((s) => s.key !== "payment.bank" && s.key !== "payment.methods")
+        .map(settingToRow);
   }
 }
 

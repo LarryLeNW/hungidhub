@@ -54,7 +54,7 @@ export const RELEASED_SECTIONS: readonly AdminSection[] = [
   "customers",
   "funds",
   "transactions",
-  "reports",
+
   "categories",
   "promotions",
   "content",

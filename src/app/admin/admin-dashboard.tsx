@@ -108,7 +108,7 @@ const navGroups: { label: string; items: { id: ModuleId; label: string; icon: Lu
     items: [
       { id: "funds", label: "Nạp tiền ví", icon: ArrowDownCircle, badge: "deposits" },
       { id: "transactions", label: "Sổ cái giao dịch", icon: WalletCards },
-      { id: "reports", label: "Báo cáo doanh thu", icon: BarChart3 },
+
     ],
   },
   {

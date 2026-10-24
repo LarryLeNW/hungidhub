@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EnvironmentVariables } from '../config/env.validation.js';
 import { ALL_ENTITIES } from './entities.js';
+import { SchemaSyncService } from './schema-sync.service.js';
 
 @Module({
   imports: [
@@ -24,5 +25,7 @@ import { ALL_ENTITIES } from './entities.js';
       }),
     }),
   ],
+  providers: [SchemaSyncService],
+  exports: [SchemaSyncService],
 })
 export class DatabaseModule {}

@@ -7,6 +7,7 @@ import { LoaderCircle, LogOut, ShieldCheck } from "lucide-react";
 import { LoginForm, RegisterForm } from "@/components/auth/auth-forms";
 import { useAuth } from "@/components/auth/auth-provider";
 import { RecentOrders } from "@/components/orders/recent-orders";
+import { MyRefundRequests } from "@/components/orders/my-refund-requests";
 import { WalletCard } from "@/components/wallet/wallet-card";
 import { roleLabels, type AuthUser } from "@/lib/api/auth";
 
@@ -104,6 +105,11 @@ export function AccountPanel({
           onNavigate={onNavigate}
           limit={variant === "page" ? 20 : 5}
           title={variant === "page" ? "Đơn hàng của bạn" : "Đơn hàng gần đây"}
+        />
+
+        <MyRefundRequests
+          onNavigate={onNavigate}
+          limit={variant === "page" ? 20 : 5}
         />
 
         <div className={variant === "page" ? "mt-6 flex flex-wrap gap-3" : "mt-5 grid gap-2"}>

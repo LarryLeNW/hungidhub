@@ -34,6 +34,7 @@ export type AdminStats = {
     orders: number;
     inventory: number;
     deposits: number;
+    refunds: number;
     support: number;
   };
   traffic: TrafficStats;
@@ -105,12 +106,14 @@ export class StatsService {
     const [badges] = await q<{
       orders: string;
       deposits: string;
+      refunds: string;
       support: string;
       inventory: string;
     }>(
       `SELECT
         (SELECT COUNT(*) FROM orders WHERE status IN ('pending_payment','processing')) orders,
         (SELECT COUNT(*) FROM fund_requests WHERE status IN ('pending','processing')) deposits,
+        (SELECT COUNT(*) FROM refund_requests WHERE status IN ('pending','processing')) refunds,
         (SELECT COUNT(*) FROM support_tickets WHERE status IN ('new','in_progress')) support,
         (SELECT COUNT(*) FROM product_variants v INNER JOIN products p ON p.id = v.product_id
           WHERE v.delivery_type='auto' AND v.is_enabled=1 AND p.deleted_at IS NULL AND p.status='active'
@@ -184,9 +187,11 @@ export class StatsService {
         orders: Number(badges.orders),
         inventory: Number(badges.inventory),
         deposits: Number(badges.deposits),
+        refunds: Number(badges.refunds || 0),
         support: Number(badges.support),
       },
       traffic,
     };
   }
 }
+

@@ -4,6 +4,8 @@ import { apiFetch, API_URL, ApiError, refreshSession } from "./client";
 import { getTokens } from "./token-store";
 import type { ApiContentBlock, ApiPage, ApiPost, ApiPostCategory } from "./content";
 import type { ApiOrder, OrderStatus } from "./orders";
+import type { ApiRefundRequest } from "./refunds";
+export type { ApiRefundRequest } from "./refunds";
 
 export type AdminVariant = ApiVariant & {
   costPrice: number | null;
@@ -183,7 +185,7 @@ export type AdminStats = {
   ordersByStatus: Record<string, number>;
   lowStock: { variantId: number; productId: number; sku: string; productName: string; available: number; threshold: number }[];
   recentActivity: { type: "order" | "fund_request" | "ticket" | "customer"; title: string; detail: string; at: string }[];
-  badges: { orders: number; inventory: number; deposits: number; support: number };
+  badges: { orders: number; inventory: number; deposits: number; refunds: number; support: number };
   traffic: {
     today: { views: number; visitors: number; changePercent: number | null };
     byDay: { date: string; views: number; visitors: number }[];
@@ -415,6 +417,13 @@ export const adminApi = {
   approveFundRequest: (id: number, note?: string) =>
     json<ApiFundRequest>(`/admin/fund-requests/${id}/approve`, "POST", note ? { note } : {}),
   rejectFundRequest: (id: number, reason: string) => json<ApiFundRequest>(`/admin/fund-requests/${id}/reject`, "POST", { reason }),
+  listRefundRequests: (params: PageParams & { status?: string } = {}) =>
+    apiFetch<Paginated<ApiRefundRequest>>(`/admin/refund-requests${buildQuery(params)}`),
+  getRefundRequest: (id: number) => apiFetch<ApiRefundRequest>(`/admin/refund-requests/${id}`),
+  approveRefundRequest: (id: number, adminNote?: string) =>
+    json<ApiRefundRequest>(`/admin/refund-requests/${id}/approve`, "POST", adminNote ? { adminNote } : {}),
+  rejectRefundRequest: (id: number, reason: string) =>
+    json<ApiRefundRequest>(`/admin/refund-requests/${id}/reject`, "POST", { reason }),
 
   // catalog structure
   listCategories: () => apiFetch<AdminCategory[]>("/admin/categories"),
@@ -480,3 +489,4 @@ export const adminApi = {
   updateSetting: (key: string, input: { value: unknown; description?: string; isPublic?: boolean }) =>
     json<AdminSetting>(`/admin/settings/${encodeURIComponent(key)}`, "PUT", input),
 };
+

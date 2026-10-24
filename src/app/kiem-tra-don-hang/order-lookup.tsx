@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   PackageOpen,
   RefreshCcw,
+  RotateCcw,
   Search,
   ShoppingBag,
   X,
@@ -19,6 +20,7 @@ import {
 import { LoginForm, RegisterForm } from "@/components/auth/auth-forms";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CancelOrderModal } from "@/components/orders/cancel-order-modal";
+import { RequestRefundModal } from "@/components/orders/request-refund-modal";
 import { OrderStatusBadge, OrderSummary } from "@/components/orders/order-summary";
 import { formatCurrency } from "@/lib/format";
 import { formatDateTime } from "@/lib/dates";
@@ -67,6 +69,7 @@ export function OrderLookup() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [refundOrder, setRefundOrder] = useState<ApiOrder | null>(null);
 
   // Success Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -353,6 +356,20 @@ export function OrderLookup() {
             ) : null}
 
             <OrderSummary order={guestOrder} />
+
+            {guestOrder.status === "completed" || guestOrder.status === "processing" ? (
+              <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-[12px]">
+                <span className="text-slate-500">Gặp sự cố với tài khoản / đơn hàng này?</span>
+                <button
+                  type="button"
+                  className="focus-ring inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 font-bold text-slate-700 transition hover:bg-slate-100 hover:border-slate-300"
+                  onClick={() => setRefundOrder(guestOrder)}
+                >
+                  <RotateCcw size={13} className="text-rose-500" />
+                  <span>Yêu cầu hoàn tiền</span>
+                </button>
+              </div>
+            ) : null}
 
             {guestOrder.status === "pending_payment" ? (
               <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-[12px]">
@@ -751,6 +768,20 @@ export function OrderLookup() {
 
                   <OrderSummary order={currentOrder} />
 
+                  {currentOrder.status === "completed" || currentOrder.status === "processing" ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-[12px]">
+                      <span className="text-slate-500">Gặp sự cố với tài khoản / đơn hàng này?</span>
+                      <button
+                        type="button"
+                        className="focus-ring inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 font-bold text-slate-700 transition hover:bg-slate-100 hover:border-slate-300"
+                        onClick={() => setRefundOrder(currentOrder)}
+                      >
+                        <RotateCcw size={13} className="text-rose-500" />
+                        <span>Yêu cầu hoàn tiền</span>
+                      </button>
+                    </div>
+                  ) : null}
+
                   {/* Cancel Button at bottom as well for convenience */}
                   {currentOrder.status === "pending_payment" ? (
                     <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-[12px]">
@@ -775,6 +806,19 @@ export function OrderLookup() {
           </div>
         </div>
       )}
+
+      {/* Request Refund Modal */}
+      {refundOrder ? (
+        <RequestRefundModal
+          order={refundOrder}
+          onClose={() => setRefundOrder(null)}
+          onSuccess={(msg) => {
+            setToastMessage(msg);
+            setRefundOrder(null);
+            if (selectedCode) void reloadDetail(selectedCode);
+          }}
+        />
+      ) : null}
 
       {/* Cancel Order UI Popup Modal */}
       <CancelOrderModal

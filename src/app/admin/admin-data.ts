@@ -19,7 +19,9 @@ import {
   type AdminVariant,
   type ApiPromotion,
   type ApiFundRequest,
+  type ApiRefundRequest,
 } from "@/lib/api/admin";
+import { refundMethodLabels, refundStatusLabels } from "@/lib/api/refunds";
 import { orderStatusLabels, paymentMethodLabels, type ApiOrder } from "@/lib/api/orders";
 import { formatDateTime, timeAgo } from "@/lib/dates";
 import { formatCurrency } from "@/lib/format";
@@ -32,6 +34,7 @@ export type AdminSection =
   | "inventory"
   | "customers"
   | "funds"
+  | "refunds"
   | "transactions"
   | "categories"
   | "promotions"
@@ -53,6 +56,7 @@ export const RELEASED_SECTIONS: readonly AdminSection[] = [
   "inventory",
   "customers",
   "funds",
+  "refunds",
   "transactions",
 
   "categories",
@@ -269,6 +273,21 @@ function fundRequestToRow(request: ApiFundRequest): DataRow {
   };
 }
 
+function refundRequestToRow(request: ApiRefundRequest): DataRow {
+  return {
+    id: request.code,
+    _ref: String(request.id),
+    _status: request.status,
+    order: request.order?.code ? `#${request.order.code}` : `#${request.orderId}`,
+    account: request.customerName || request.customerEmail || (request.user?.fullName ?? request.user?.email ?? "—"),
+    amount: formatCurrency(request.amount),
+    method: refundMethodLabels[request.refundMethod] || request.refundMethod,
+    reason: request.reason,
+    status: refundStatusLabels[request.status] || request.status,
+    date: timeAgo(request.createdAt),
+  };
+}
+
 function transactionToRow(transaction: AdminTransaction): DataRow {
   const user = transaction.wallet?.user;
   return {
@@ -428,6 +447,8 @@ async function fetchRows(section: ModuleSection): Promise<DataRow[]> {
       return (await adminApi.listUsers({ limit: 100, role: "customer" })).items.map(customerToRow);
     case "funds":
       return (await adminApi.listFundRequests({ limit: 100 })).items.map(fundRequestToRow);
+    case "refunds":
+      return (await adminApi.listRefundRequests({ limit: 100 })).items.map(refundRequestToRow);
     case "transactions":
       return (await adminApi.listTransactions({ limit: 100 })).items.map(transactionToRow);
     case "categories":

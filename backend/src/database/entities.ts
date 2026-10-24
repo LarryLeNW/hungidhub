@@ -16,6 +16,7 @@ import { Wallet } from '../finance/entities/wallet.entity.js';
 import { OrderItem } from '../orders/entities/order-item.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import { Payment } from '../orders/entities/payment.entity.js';
+import { RefundRequest } from '../orders/entities/refund-request.entity.js';
 import { PromotionUsage } from '../promotions/entities/promotion-usage.entity.js';
 import { Promotion } from '../promotions/entities/promotion.entity.js';
 import { SupportMessage } from '../support/entities/support-message.entity.js';
@@ -49,6 +50,7 @@ export const ALL_ENTITIES = [
   Order,
   OrderItem,
   Payment,
+  RefundRequest,
   Promotion,
   PromotionUsage,
   // content

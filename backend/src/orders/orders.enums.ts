@@ -26,3 +26,16 @@ export enum OrderItemDeliveryStatus {
   Delivered = 'delivered',
   Failed = 'failed',
 }
+
+export enum RefundRequestStatus {
+  Pending = 'pending',
+  Processing = 'processing',
+  Completed = 'completed',
+  Rejected = 'rejected',
+  Cancelled = 'cancelled',
+}
+
+export enum RefundMethod {
+  Wallet = 'wallet',
+  BankTransfer = 'bank_transfer',
+}

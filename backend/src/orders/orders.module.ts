@@ -9,6 +9,7 @@ import { SystemModule } from '../system/system.module.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Order } from './entities/order.entity.js';
 import { Payment } from './entities/payment.entity.js';
+import { RefundRequest } from './entities/refund-request.entity.js';
 import {
   AdminOrdersController,
   OrdersController,
@@ -16,6 +17,11 @@ import {
 import { OrdersService } from './orders.service.js';
 import { CassoWebhookController } from './casso-webhook.controller.js';
 import { CassoWebhookService } from './casso-webhook.service.js';
+import {
+  AdminRefundRequestsController,
+  RefundRequestsController,
+} from './refund-requests.controllers.js';
+import { RefundRequestsService } from './refund-requests.service.js';
 
 @Module({
   imports: [
@@ -23,6 +29,7 @@ import { CassoWebhookService } from './casso-webhook.service.js';
       Order,
       OrderItem,
       Payment,
+      RefundRequest,
       ProductVariant,
       Setting,
     ]),
@@ -31,8 +38,14 @@ import { CassoWebhookService } from './casso-webhook.service.js';
     FinanceModule,
     SystemModule,
   ],
-  controllers: [OrdersController, AdminOrdersController, CassoWebhookController],
-  providers: [OrdersService, CassoWebhookService],
-  exports: [OrdersService],
+  controllers: [
+    OrdersController,
+    AdminOrdersController,
+    CassoWebhookController,
+    RefundRequestsController,
+    AdminRefundRequestsController,
+  ],
+  providers: [OrdersService, CassoWebhookService, RefundRequestsService],
+  exports: [OrdersService, RefundRequestsService],
 })
 export class OrdersModule {}

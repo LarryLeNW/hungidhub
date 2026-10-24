@@ -42,11 +42,13 @@ import {
   Warehouse,
   X,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { IdhubLogo } from "@/components/Idhub-logo";
 import { useAuth } from "@/components/auth/auth-provider";
+import { refundMethodLabels, refundStatusLabels, type ApiRefundRequest } from "@/lib/api/refunds";
 import { adminApi, type AdminNotification, type AdminStats, type AdminReport, type ApiFundRequest, type ImportExcelResult } from "@/lib/api/admin";
-import { confirmDanger, promptText } from "./forms/dialogs";
+import { confirmAction, confirmDanger, promptText } from "./forms/dialogs";
 import { roleLabels } from "@/lib/api/auth";
 import { formatDateTime, timeAgo } from "@/lib/dates";
 import { formatCurrency } from "@/lib/format";
@@ -107,6 +109,7 @@ const navGroups: { label: string; items: { id: ModuleId; label: string; icon: Lu
     label: "Tài chính",
     items: [
       { id: "funds", label: "Nạp tiền ví", icon: ArrowDownCircle, badge: "deposits" },
+      { id: "refunds", label: "Yêu cầu hoàn tiền", icon: RotateCcw, badge: "refunds" },
       { id: "transactions", label: "Sổ cái giao dịch", icon: WalletCards },
 
     ],
@@ -202,6 +205,21 @@ const moduleDefinitions: Record<ModuleSection, ModuleDefinition> = {
       { key: "amount", label: "Số tiền" },
       { key: "bank", label: "Ngân hàng / STK" },
       { key: "note", label: "Ghi chú" },
+      { key: "status", label: "Trạng thái" },
+      { key: "date", label: "Thời gian" },
+    ],
+  },
+  refunds: {
+    title: "Yêu cầu hoàn tiền",
+    description: "Danh sách và duyệt các yêu cầu hoàn tiền đơn hàng từ khách hàng.",
+    icon: RotateCcw,
+    columns: [
+      { key: "id", label: "Mã YC" },
+      { key: "order", label: "Đơn hàng" },
+      { key: "account", label: "Khách hàng" },
+      { key: "amount", label: "Số tiền" },
+      { key: "method", label: "Hình thức" },
+      { key: "reason", label: "Lý do" },
       { key: "status", label: "Trạng thái" },
       { key: "date", label: "Thời gian" },
     ],
@@ -389,7 +407,7 @@ function AdminSidebar({
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const released = isReleased(item.id);
-                const badge = released && item.badge && badges ? badges[item.badge] : 0;
+                const badge = released && item.badge && badges ? (badges[item.badge] ?? 0) : 0;
                 return (
                   <button
                     key={item.id}
@@ -1479,6 +1497,263 @@ function FundRequestDetailModal({
   );
 }
 
+function RefundRequestDetailModal({
+  refundRequestId,
+  onClose,
+  onProcessed,
+}: {
+  refundRequestId: number;
+  onClose: () => void;
+  onProcessed: (message: string) => void;
+}) {
+  const dialogRef = useDialogBehavior(onClose);
+  const [refund, setRefund] = useState<ApiRefundRequest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const [adminNote, setAdminNote] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    adminApi
+      .getRefundRequest(refundRequestId)
+      .then((data) => {
+        if (active) setRefund(data);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Không tải được thông tin");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [refundRequestId]);
+
+  const handleApprove = async () => {
+    if (!refund) return;
+    const confirmMessage =
+      refund.refundMethod === "wallet"
+        ? `Hệ thống sẽ hoàn ${formatCurrency(refund.amount)} trực tiếp vào Ví Idhub của khách hàng ${refund.customerName || refund.customerEmail}. Bạn có chắc chắn muốn duyệt?`
+        : `Bạn xác nhận đã chuyển khoản ${formatCurrency(refund.amount)} tới tài khoản ngân hàng của khách hàng?`;
+    const ok = await confirmAction("Xác nhận duyệt hoàn tiền", confirmMessage, "Duyệt & Hoàn tiền");
+    if (!ok) return;
+
+    setActionPending(true);
+    try {
+      await adminApi.approveRefundRequest(refund.id, adminNote.trim() || undefined);
+      onProcessed(`Đã duyệt hoàn tiền ${formatCurrency(refund.amount)} cho yêu cầu ${refund.code}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không duyệt được yêu cầu hoàn tiền");
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!refund) return;
+    const reason = await promptText({
+      title: "Từ chối yêu cầu hoàn tiền",
+      text: "Nhập lý do từ chối để thông báo cho khách hàng:",
+      confirmText: "Từ chối yêu cầu",
+    });
+    if (!reason?.trim()) return;
+    setActionPending(true);
+    try {
+      await adminApi.rejectRefundRequest(refund.id, reason.trim());
+      onProcessed(`Đã từ chối yêu cầu hoàn tiền ${refund.code}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không từ chối được yêu cầu hoàn tiền");
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const isPending = refund?.status === "pending" || refund?.status === "processing";
+
+  return (
+    <div className={styles.modalLayer} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} className={`${styles.modal} ${styles.detailModal}`} role="dialog" aria-modal="true" aria-labelledby="refund-detail-title">
+        <div className={styles.modalHeader}>
+          <div>
+            <span>CHI TIẾT YÊU CẦU HOÀN TIỀN</span>
+            <h2 id="refund-detail-title">{refund?.code || `#${refundRequestId}`}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Đóng"><X size={20} /></button>
+        </div>
+
+        {loading ? (
+          <div className={styles.modalLoading}>
+            <LoaderCircle size={22} className="animate-spin" />
+            <span>Đang tải thông tin…</span>
+          </div>
+        ) : error ? (
+          <p role="alert" className={styles.inlineAlert}>{error}</p>
+        ) : refund ? (
+          <div style={{ padding: "0 20px" }}>
+            <div className={styles.detailGrid}>
+              <div>
+                <span>Khách hàng</span>
+                <strong>{refund.customerName || "—"}</strong>
+                <small style={{ color: "#8b97ab", display: "block" }}>{refund.customerEmail} {refund.customerPhone ? `· ${refund.customerPhone}` : ""}</small>
+              </div>
+              <div>
+                <span>Đơn hàng</span>
+                <strong>
+                  {refund.order?.code ? `#${refund.order.code}` : `#${refund.orderId}`}
+                </strong>
+                {refund.order?.items && refund.order.items.length > 0 && (
+                  <small style={{ color: "#8b97ab", display: "block" }}>
+                    {refund.order.items.map((it) => it.productName).join(", ")}
+                  </small>
+                )}
+              </div>
+              <div>
+                <span>Số tiền hoàn</span>
+                <strong style={{ color: "#38bdf8", fontSize: "16px" }}>{formatCurrency(refund.amount)}</strong>
+              </div>
+              <div>
+                <span>Trạng thái</span>
+                <StatusBadge>{refundStatusLabels[refund.status] || refund.status}</StatusBadge>
+              </div>
+              <div>
+                <span>Hình thức hoàn tiền</span>
+                <strong style={{ color: refund.refundMethod === "wallet" ? "#34d399" : "#60a5fa" }}>
+                  {refundMethodLabels[refund.refundMethod] || refund.refundMethod}
+                </strong>
+              </div>
+              <div>
+                <span>Thời gian gửi</span>
+                <strong>{formatDateTime(refund.createdAt)}</strong>
+              </div>
+
+              {refund.refundMethod === "bank_transfer" && (
+                <div style={{ gridColumn: "1 / -1", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(148, 163, 184, 0.1)" }}>
+                  <span style={{ display: "block", marginBottom: "6px", fontWeight: 600, color: "#93c5fd" }}>Thông tin tài khoản ngân hàng nhận tiền</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                    <div>
+                      <small style={{ color: "#8b97ab" }}>Ngân hàng:</small>
+                      <div style={{ fontWeight: 600 }}>{refund.bankName || "—"}</div>
+                    </div>
+                    <div>
+                      <small style={{ color: "#8b97ab" }}>Số tài khoản:</small>
+                      <div style={{ fontWeight: 600, color: "#38bdf8", fontFamily: "monospace", fontSize: "15px" }}>{refund.bankAccountNumber || "—"}</div>
+                    </div>
+                    <div>
+                      <small style={{ color: "#8b97ab" }}>Tên chủ tài khoản:</small>
+                      <div style={{ fontWeight: 600, textTransform: "uppercase" }}>{refund.bankAccountName || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <span>Lý do hoàn tiền</span>
+                <strong>{refund.reason}</strong>
+                {refund.description && (
+                  <p style={{ marginTop: "4px", color: "#cbd5e1", whiteSpace: "pre-line", fontSize: "13px" }}>{refund.description}</p>
+                )}
+              </div>
+
+              {refund.proofImageUrl && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span>Ảnh bằng chứng</span>
+                  <div style={{ marginTop: "6px" }}>
+                    <a href={refund.proofImageUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "13px" }}>
+                      Xem ảnh bằng chứng <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {refund.reviewedBy && (
+                <div>
+                  <span>Người duyệt / xử lý</span>
+                  <strong>{refund.reviewedBy.fullName || `Admin #${refund.reviewedById}`}</strong>
+                  {refund.reviewedAt && (
+                    <small style={{ color: "#8b97ab", display: "block" }}>{formatDateTime(refund.reviewedAt)}</small>
+                  )}
+                </div>
+              )}
+
+              {refund.adminNote && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span>Ghi chú của Admin</span>
+                  <strong style={{ color: "#93c5fd" }}>{refund.adminNote}</strong>
+                </div>
+              )}
+
+              {refund.rejectReason && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span>Lý do từ chối</span>
+                  <strong style={{ color: "#f87171" }}>{refund.rejectReason}</strong>
+                </div>
+              )}
+            </div>
+
+            {isPending && (
+              <div style={{ marginTop: "16px" }}>
+                <label className={styles.fullField}>
+                  <span>Ghi chú xử lý / duyệt (tùy chọn)</span>
+                  <input
+                    type="text"
+                    placeholder="VD: Đã hoàn vào ví / Đã chuyển khoản qua VCB..."
+                    value={adminNote}
+                    onChange={(event) => setAdminNote(event.target.value)}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <div className={styles.modalActions}>
+          <button type="button" className={styles.secondaryButton} onClick={onClose} disabled={actionPending}>Đóng</button>
+          {isPending && (
+            <>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={handleReject}
+                disabled={actionPending}
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  padding: "8px 14px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Từ chối
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={handleApprove}
+                disabled={actionPending}
+              >
+                {actionPending ? (
+                  <>
+                    <LoaderCircle size={16} className="animate-spin" />
+                    <span>Đang xử lý…</span>
+                  </>
+                ) : (
+                  <span>Duyệt & Hoàn tiền</span>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+
 export function AdminDashboard({
   initialView = "overview",
   productEditor,
@@ -1496,6 +1771,7 @@ export function AdminDashboard({
   const [detailRow, setDetailRow] = useState<DataRow | null>(null);
   const [inspectingReportId, setInspectingReportId] = useState<number | null>(null);
   const [inspectingFundId, setInspectingFundId] = useState<number | null>(null);
+  const [inspectingRefundId, setInspectingRefundId] = useState<number | null>(null);
   /** Section-specific editor/detail dialog; `id` undefined = create. */
   const [excelImportType, setExcelImportType] = useState<"products" | "categories" | "customers" | null>(null);
   const [editor, setEditor] = useState<{ section: ModuleSection; id?: number | string } | null>(null);
@@ -1582,6 +1858,7 @@ export function AdminDashboard({
     setEditor(null);
     setInspectingReportId(null);
     setInspectingFundId(null);
+    setInspectingRefundId(null);
     setNotificationOpen(false);
     router.push(id === "overview" ? "/admin" : `/admin/${id}`);
   };
@@ -1619,6 +1896,9 @@ export function AdminDashboard({
     if (active === "funds" && row._ref) {
       setInspectingFundId(Number(row._ref));
       return;
+    }
+    if (active === "refunds" && row._ref) {
+      setInspectingRefundId(Number(row._ref));
       return;
     }
     if (active !== "overview" && active !== "traffic" && EDITABLE_SECTIONS.includes(active) && row._ref) {
@@ -1644,6 +1924,7 @@ export function AdminDashboard({
     setEditor(null);
     setInspectingReportId(null);
     setInspectingFundId(null);
+    setInspectingRefundId(null);
     notify(message);
     await Promise.all([remote.refresh(), refreshStats()]);
   };
@@ -1789,7 +2070,7 @@ export function AdminDashboard({
                   {profileMenuItems.filter((item) => !item.hidden).map((item) => {
                     const Icon = item.icon;
                     const released = isReleased(item.id);
-                    const badge = released && item.badge && stats ? stats.badges[item.badge] : 0;
+                    const badge = released && item.badge && stats ? (stats.badges[item.badge] ?? 0) : 0;
                     return (
                       <button
                         key={item.id}
@@ -1858,6 +2139,7 @@ export function AdminDashboard({
       {createOpen && active === "reports" && <ReportModal onClose={() => setCreateOpen(false)} onCreated={(message) => { setCreateOpen(false); notify(message); void remote.refresh(); }} />}
       {inspectingReportId && <ReportDetailModal reportId={inspectingReportId} onClose={() => setInspectingReportId(null)} />}
       {inspectingFundId && <FundRequestDetailModal fundRequestId={inspectingFundId} onClose={() => setInspectingFundId(null)} onProcessed={(message) => { setInspectingFundId(null); notify(message); void Promise.all([remote.refresh(), refreshStats()]); }} />}
+      {inspectingRefundId && <RefundRequestDetailModal refundRequestId={inspectingRefundId} onClose={() => setInspectingRefundId(null)} onProcessed={(message) => { setInspectingRefundId(null); notify(message); void Promise.all([remote.refresh(), refreshStats()]); }} />}
       {detailRow && definition && <DetailModal definition={definition} row={detailRow} onClose={() => setDetailRow(null)} onUpdate={() => void updateRow(detailRow)} />}
       {editor?.section === "categories" && <CategoryForm categoryId={editor.id as number | undefined} onClose={() => setEditor(null)} onSaved={(message) => void afterEditorSaved(message)} />}
       {editor?.section === "promotions" && <PromotionForm promotionId={editor.id as number | undefined} onClose={() => setEditor(null)} onSaved={(message) => void afterEditorSaved(message)} />}

@@ -65,7 +65,7 @@ export function SettingForm({ settingKey, onClose, onSaved }: { settingKey: stri
   return (
     <AdminModal
       eyebrow="CÀI ĐẶT"
-      title={settingKey}
+      title={description || settingKey}
       onClose={onClose}
       loading={loading}
       footer={

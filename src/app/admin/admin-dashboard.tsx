@@ -345,7 +345,6 @@ const moduleDefinitions: Record<ModuleSection, ModuleDefinition> = {
     description: "Cấu hình cửa hàng, thanh toán, thông báo và tích hợp (lưu trong bảng settings).",
     icon: Settings,
     columns: [
-      { key: "id", label: "Khóa" },
       { key: "description", label: "Mô tả" },
       { key: "group", label: "Nhóm" },
       { key: "value", label: "Giá trị" },

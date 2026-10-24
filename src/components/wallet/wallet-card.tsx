@@ -18,9 +18,12 @@ import {
   type ApiWalletTransaction,
 } from "@/lib/api/wallet";
 import { useWallet } from "./wallet-provider";
+import { usePublicSettings } from "@/components/settings/settings-provider";
 
 export function WalletCard({ className }: { className?: string } = {}) {
   const { balance, isLoading, refreshBalance, openDepositModal } = useWallet();
+  const settings = usePublicSettings();
+  const storeName = settings["store.name"] || "IDHUB";
   const [transactions, setTransactions] = useState<ApiWalletTransaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -61,7 +64,7 @@ export function WalletCard({ className }: { className?: string } = {}) {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] sm:text-[12px] font-bold uppercase tracking-wider text-slate-500 truncate">
-                Số dư ví AIHUB
+                Số dư ví {storeName}
               </span>
               <button
                 type="button"

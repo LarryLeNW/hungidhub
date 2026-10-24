@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -11,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { usePublicSettings } from "@/components/settings/settings-provider";
 import type { ContentDoc } from "@/lib/api/content";
 
 type AboutTemplateProps = {
@@ -59,8 +62,13 @@ const commitments = [
 ];
 
 export function AboutTemplate({ page }: AboutTemplateProps) {
+  const settings = usePublicSettings();
+  const storeName = settings["store.name"] ?? siteConfig.name;
+  const hotline = settings["store.hotline"] ?? siteConfig.phone;
+  const email = settings["store.email"] ?? siteConfig.email;
+  const phoneClean = hotline.replace(/\s/g, "");
+  const zaloUrl = settings["store.zalo"] ?? `https://zalo.me/${phoneClean}`;
   const updatedAt = formatDate(page.updatedAt);
-  const phoneHref = siteConfig.phone.replace(/\s/g, "");
 
   return (
     <main className="bg-white">
@@ -68,13 +76,13 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
         <div className="ktk-page-frame grid gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:py-12">
           <div>
             <p className="inline-flex rounded-full bg-[#ecfdf5] px-4 py-1 text-[12px] font-extrabold uppercase text-[#15803d]">
-              Giới thiệu Idhub
+              Giới thiệu {storeName}
             </p>
             <h1 className="mt-5 max-w-[760px] text-[34px] font-extrabold leading-tight text-slate-950 lg:text-[44px]">
               Nơi mua tài khoản số rõ thông tin, dễ nhận hàng và có hỗ trợ sau bán
             </h1>
             <p className="mt-4 max-w-[720px] text-[16px] leading-7 text-slate-600">
-              Idhub cung cấp tài khoản premium, công cụ AI và phần mềm bản quyền cho người dùng cá nhân, freelancer, team nhỏ và người học. Mục tiêu của trang không phải là liệt kê thật nhiều con số, mà là giúp bạn biết mình đang mua gì, nhận bằng cách nào và cần liên hệ ai khi phát sinh vấn đề.
+              {storeName} cung cấp tài khoản premium, công cụ AI và phần mềm bản quyền cho người dùng cá nhân, freelancer, team nhỏ và người học. Mục tiêu của trang không phải là liệt kê thật nhiều con số, mà là giúp bạn biết mình đang mua gì, nhận bằng cách nào và cần liên hệ ai khi phát sinh vấn đề.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
@@ -85,7 +93,9 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
                 Xem sản phẩm
               </Link>
               <a
-                href={`https://zalo.me/${phoneHref}`}
+                href={zaloUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#bbf7d0] bg-white px-5 text-[14px] font-extrabold text-[#15803d]"
               >
                 <MessageCircle size={18} aria-hidden="true" />
@@ -97,13 +107,13 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
           <aside className="rounded-[8px] border border-[#d9f7e5] bg-white p-5 shadow-[0_6px_22px_rgba(15,23,42,0.06)]">
             <h2 className="text-[17px] font-extrabold text-slate-950">Thông tin hỗ trợ</h2>
             <div className="mt-4 space-y-3 text-[14px] text-slate-600">
-              <a href={`tel:${phoneHref}`} className="flex items-center gap-3 hover:text-[#15803d]">
+              <a href={`tel:${phoneClean}`} className="flex items-center gap-3 hover:text-[#15803d]">
                 <Headphones size={18} className="text-[#15803d]" aria-hidden="true" />
-                {siteConfig.phone}
+                {hotline}
               </a>
-              <a href={`mailto:${siteConfig.email}`} className="flex items-center gap-3 hover:text-[#15803d]">
+              <a href={`mailto:${email}`} className="flex items-center gap-3 hover:text-[#15803d]">
                 <Mail size={18} className="text-[#15803d]" aria-hidden="true" />
-                {siteConfig.email}
+                {email}
               </a>
               <p className="flex items-center gap-3">
                 <Clock3 size={18} className="text-[#15803d]" aria-hidden="true" />
@@ -121,7 +131,7 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
         <div className="ktk-page-frame">
           <div className="grid gap-8 lg:grid-cols-[330px_minmax(0,1fr)]">
             <div>
-              <p className="text-[12px] font-extrabold uppercase text-[#15803d]">Idhub làm gì?</p>
+              <p className="text-[12px] font-extrabold uppercase text-[#15803d]">{storeName} làm gì?</p>
               <h2 className="mt-2 text-[25px] font-extrabold leading-tight text-slate-950">
                 Gom các công cụ số phổ biến vào một nơi dễ mua hơn
               </h2>
@@ -149,7 +159,7 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
               Tập trung vào đơn hàng thật, không phóng đại bằng số liệu khó kiểm chứng
             </h2>
             <p className="mt-3 text-[14px] leading-6 text-slate-600">
-              Mỗi ngày Idhub xử lý các đơn có sẵn, đơn nâng cấp và yêu cầu bảo hành. Điều quan trọng là thông tin phải dễ hiểu, khách nhận đúng thứ đã mua và có đường liên hệ khi cần kiểm tra lại.
+              Mỗi ngày {storeName} xử lý các đơn có sẵn, đơn nâng cấp và yêu cầu bảo hành. Điều quan trọng là thông tin phải dễ hiểu, khách nhận đúng thứ đã mua và có đường liên hệ khi cần kiểm tra lại.
             </p>
           </div>
 
@@ -201,7 +211,7 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
                 Thanh toán và thông tin đơn
               </div>
               <p className="mt-2 text-[13px] leading-5 text-slate-600">
-                Luôn kiểm tra email nhận hàng, số điện thoại và ghi chú trước khi thanh toán. Đây là thông tin Idhub dùng để giao tài khoản và hỗ trợ sau mua.
+                Luôn kiểm tra email nhận hàng, số điện thoại và ghi chú trước khi thanh toán. Đây là thông tin {storeName} dùng để giao tài khoản và hỗ trợ sau mua.
               </p>
             </div>
           </div>
@@ -213,12 +223,14 @@ export function AboutTemplate({ page }: AboutTemplateProps) {
           <div>
             <h2 className="text-[22px] font-extrabold text-slate-950">Cần chọn gói phù hợp?</h2>
             <p className="mt-2 max-w-[680px] text-[14px] leading-6 text-slate-600">
-              Gửi nhu cầu sử dụng, thiết bị đang dùng và thời hạn mong muốn. Idhub sẽ gợi ý theo nhu cầu thực tế thay vì chỉ đẩy gói đắt nhất.
+              Gửi nhu cầu sử dụng, thiết bị đang dùng và thời hạn mong muốn. {storeName} sẽ gợi ý theo nhu cầu thực tế thay vì chỉ đẩy gói đắt nhất.
             </p>
             <p className="mt-2 text-[12px] font-semibold text-slate-400">Cập nhật nội dung: {updatedAt}</p>
           </div>
           <a
-            href={`https://zalo.me/${phoneHref}`}
+            href={zaloUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[#15803d] px-5 text-[14px] font-extrabold text-white"
           >
             <MessageCircle size={18} aria-hidden="true" />

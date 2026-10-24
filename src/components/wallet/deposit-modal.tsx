@@ -20,6 +20,7 @@ import {
   type ApiFundRequest,
 } from "@/lib/api/wallet";
 import { getBankBin } from "@/components/orders/order-summary";
+import { usePublicSettings } from "@/components/settings/settings-provider";
 
 const QUICK_AMOUNTS = [50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000];
 
@@ -54,6 +55,10 @@ export function DepositModal({
   onClose: () => void;
   onSuccess?: () => void;
 }) {
+  const settings = usePublicSettings();
+  const storeName = settings["store.name"] || "IDHUB";
+  const minDeposit = settings["payment.min_deposit"] ?? 10_000;
+
   const [amount, setAmount] = useState<number>(100_000);
   const [customAmountStr, setCustomAmountStr] = useState<string>("100000");
   const [pending, setPending] = useState(false);
@@ -88,8 +93,8 @@ export function DepositModal({
   };
 
   const handleCreateDeposit = async () => {
-    if (amount < 10_000) {
-      setError("Số tiền nạp tối thiểu là 10.000đ");
+    if (amount < minDeposit) {
+      setError(`Số tiền nạp tối thiểu là ${formatCurrency(minDeposit)}`);
       return;
     }
     if (amount > 500_000_000) {
@@ -103,13 +108,12 @@ export function DepositModal({
       const res = await walletApi.createDeposit(amount);
       setFundRequest(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tạo yêu cầu nạp tiền.");
+      setError(err instanceof Error ? err.message : "Không tạo được giao dịch nạp tiền.");
     } finally {
       setPending(false);
     }
   };
 
-  // Polling for completion
   const fundRequestId = fundRequest?.id;
   const fundRequestStatus = fundRequest?.status;
 
@@ -119,13 +123,16 @@ export function DepositModal({
     const timer = window.setInterval(async () => {
       try {
         const updated = await walletApi.getFundRequest(fundRequestId);
-        setFundRequest(updated);
         if (updated.status === "completed") {
           setIsCompleted(true);
           onSuccess?.();
+          window.clearInterval(timer);
+        } else if (updated.status === "rejected") {
+          setError("Giao dịch nạp tiền đã bị từ chối.");
+          window.clearInterval(timer);
         }
       } catch {
-        // network retry
+        // silent retry
       }
     }, 2500);
 
@@ -167,7 +174,7 @@ export function DepositModal({
               <Wallet size={16} />
             </div>
             <div>
-              <h3 className="text-[15px] font-black text-slate-900 leading-tight">Nạp tiền vào ví AIHUB</h3>
+              <h3 className="text-[15px] font-black text-slate-900 leading-tight">Nạp tiền vào ví {storeName}</h3>
               <p className="text-[11px] text-slate-500 font-medium">Tự động cộng tiền 24/7 qua VietQR</p>
             </div>
           </div>
@@ -188,36 +195,36 @@ export function DepositModal({
                 <CheckCircle2 size={32} />
               </div>
               <div>
-                <h4 className="text-[17px] font-black text-slate-950">Nạp tiền thành công!</h4>
-                <p className="mt-1 text-[13px] text-slate-600">
-                  Đã cộng <strong>{formatCurrency(fundRequest?.amount ?? amount)}</strong> vào số dư ví của bạn.
+                <h4 className="text-[17px] font-black text-slate-900">Nạp tiền thành công!</h4>
+                <p className="text-[13px] text-slate-600 mt-1">
+                  Đã cộng <strong>{formatCurrency(fundRequest?.amount ?? 0)}</strong> vào ví của bạn.
                 </p>
               </div>
               <button
                 type="button"
-                className="focus-ring mt-1 inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary font-extrabold text-white transition hover:bg-primary-strong shadow-md shadow-emerald-500/20"
+                className="focus-ring inline-flex h-9 cursor-pointer items-center justify-center rounded-lg bg-primary px-5 text-[13px] font-extrabold text-white shadow-xs transition hover:bg-primary-strong"
                 onClick={onClose}
               >
                 Hoàn tất
               </button>
             </div>
           ) : !fundRequest ? (
-            <div className="space-y-3.5">
-              {/* Quick Amount Options */}
+            /* Amount Selection view */
+            <div className="space-y-4">
               <div>
-                <label className="block text-[12px] font-bold text-slate-700 mb-1.5">
-                  Chọn số tiền nạp nhanh
+                <label className="text-[12px] font-bold text-slate-700 block mb-1.5">
+                  Chọn nhanh mệnh giá
                 </label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-2">
                   {QUICK_AMOUNTS.map((val) => {
                     const isSelected = amount === val;
                     return (
                       <button
                         key={val}
                         type="button"
-                        className={`focus-ring h-8.5 rounded-lg border text-[12px] font-extrabold transition cursor-pointer ${
+                        className={`focus-ring h-9 rounded-lg border text-[12px] font-extrabold transition cursor-pointer ${
                           isSelected
-                            ? "border-primary bg-emerald-50/80 text-primary-strong shadow-xs"
+                            ? "border-primary bg-primary/10 text-primary-strong shadow-xs ring-1 ring-primary/40"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                         onClick={() => handleQuickSelect(val)}
@@ -229,23 +236,22 @@ export function DepositModal({
                 </div>
               </div>
 
-              {/* Custom input */}
               <div>
-                <label htmlFor="custom-amount-input" className="block text-[12px] font-bold text-slate-700 mb-1">
-                  Hoặc nhập số tiền tùy chọn
+                <label htmlFor="deposit-amount-input" className="text-[12px] font-bold text-slate-700 block mb-1.5">
+                  Hoặc nhập số tiền khác (VNĐ)
                 </label>
                 <div className="relative">
                   <input
-                    id="custom-amount-input"
+                    id="deposit-amount-input"
                     type="text"
                     inputMode="numeric"
-                    value={customAmountStr ? Number(customAmountStr).toLocaleString("vi-VN") : ""}
-                    placeholder="Tối thiểu 10.000đ"
-                    className="focus-ring h-9.5 w-full rounded-lg border border-slate-200 bg-white px-3 pr-11 text-[14px] font-black text-slate-900 outline-none transition focus:border-primary"
+                    value={customAmountStr}
                     onChange={handleCustomChange}
+                    className="focus-ring h-10 w-full rounded-lg border border-slate-200 px-3 pr-10 text-[14px] font-black text-slate-900 placeholder:text-slate-400"
+                    placeholder="100.000"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-slate-400">
-                    VND
+                    đ
                   </span>
                 </div>
               </div>
@@ -264,7 +270,7 @@ export function DepositModal({
 
               <button
                 type="button"
-                disabled={pending || amount < 10_000}
+                disabled={pending || amount < minDeposit}
                 className="focus-ring inline-flex h-9.5 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary font-extrabold text-[13px] text-white transition hover:bg-primary-strong disabled:opacity-60 shadow-xs"
                 onClick={handleCreateDeposit}
               >

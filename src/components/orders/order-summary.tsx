@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { TingTingHelpers } from "@/helpers/TingTingHelpers";
 import { formatDateTime } from "@/lib/dates";
 import { formatCurrency } from "@/lib/format";
+import { usePublicSettings } from "@/components/settings/settings-provider";
 import {
   orderStatusLabels,
   paymentMethodLabels,
@@ -112,6 +113,13 @@ export function generateEmvcoPayload(instructions: PaymentInstructions): string 
 }
 
 export function PaymentInstructionsCard({ instructions }: { instructions: PaymentInstructions }) {
+  const settings = usePublicSettings();
+  const hotline = (instructions as { hotline?: string }).hotline || settings["store.hotline"] || "0931 729 316";
+  const zaloUrl =
+    (instructions as { zalo?: string }).zalo ||
+    settings["store.zalo"] ||
+    `https://zalo.me/${hotline.replace(/\s/g, "")}`;
+
   const qrPayload = useMemo(
     () => (instructions.method === "zalo" ? "" : generateEmvcoPayload(instructions)),
     [instructions],
@@ -122,7 +130,16 @@ export function PaymentInstructionsCard({ instructions }: { instructions: Paymen
       <div className="rounded-md border border-sky-200 bg-sky-50 p-4 text-[13px] leading-6 text-slate-700">
         <p className="font-extrabold text-slate-950">Xác nhận qua Zalo</p>
         <p>
-          Nhắn Zalo <strong>0931 729 316</strong> kèm mã đơn <strong>{instructions.transferContent}</strong> để
+          Nhắn Zalo{" "}
+          <a
+            href={zaloUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-extrabold text-[#0068ff] underline"
+          >
+            {hotline}
+          </a>{" "}
+          kèm mã đơn <strong>{instructions.transferContent}</strong> để
           được hướng dẫn thanh toán {formatCurrency(instructions.amount)}.
         </p>
       </div>

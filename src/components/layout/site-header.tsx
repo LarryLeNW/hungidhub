@@ -21,7 +21,9 @@ import {
   Heart,
   Home,
   Laptop,
+  Mail,
   Menu,
+  Phone,
   Search,
   ShieldCheck,
   ShoppingCart,
@@ -232,7 +234,7 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
             </button>
             <IdhubLogo
               size="sm"
-              name={"Idhub"}
+              name={settings["store.name"] ?? "Idhub"}
               tagline={settings["store.tagline"] ?? "Tài khoản số giá tốt"}
               className="focus-ring absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             />
@@ -241,7 +243,7 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
                 <button
                   type="button"
                   className="focus-ring flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-800"
-                  title="Số dư ví AIHUB - Click để nạp"
+                  title={`Số dư ví ${settings["store.name"] ?? "IDHUB"} - Click để nạp`}
                   onClick={openDepositModal}
                 >
                   <Wallet size={12} className="text-primary" />
@@ -276,9 +278,17 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
             <SearchBox />
 
             <div className="flex items-center gap-2">
-              <Image src={zaloUrl} alt="Zalo" width={38} height={38} />
               <a
-                className="whitespace-nowrap text-[15px] font-extrabold text-slate-950"
+                href={settings["store.zalo"] ?? `https://zalo.me/${hotline.replace(/\s/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Chat Zalo"
+                className="transition hover:opacity-85"
+              >
+                <Image src={zaloUrl} alt="Zalo" width={38} height={38} />
+              </a>
+              <a
+                className="whitespace-nowrap text-[15px] font-extrabold text-slate-950 hover:text-primary transition"
                 href={phoneHref(hotline)}
               >
                 {hotline}
@@ -445,7 +455,7 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
                   <button
                     type="button"
                     className="focus-ring flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-[12px] font-extrabold text-emerald-800 shadow-sm hover:bg-emerald-100/70 transition cursor-pointer"
-                    title="Số dư ví AIHUB - Bấm để nạp tiền"
+                    title={`Số dư ví ${settings["store.name"] ?? "IDHUB"} - Bấm để nạp tiền`}
                     onClick={openDepositModal}
                   >
                     <Wallet size={14} className="text-primary" />
@@ -484,11 +494,19 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
             aria-label="Đóng menu"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="absolute left-0 top-0 h-full w-[300px] overflow-hidden bg-white shadow-2xl">
-            <div className="flex h-[53px] items-center justify-center border-b-2 border-[#16a34a] text-[14px] font-extrabold uppercase text-slate-950">
-              DANH MỤC
+          <div className="absolute left-0 top-0 flex h-full w-[300px] flex-col overflow-hidden bg-white shadow-2xl">
+            <div className="flex h-[53px] shrink-0 items-center justify-between border-b-2 border-[#16a34a] px-4 text-[14px] font-extrabold uppercase text-slate-950">
+              <span>DANH MỤC</span>
+              <button
+                type="button"
+                className="grid size-8 place-items-center text-slate-500 hover:text-slate-900"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Đóng menu"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="bg-white">
+            <div className="flex-1 overflow-y-auto bg-white">
               {categoryMenuItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.href === activeCategoryHref;
@@ -546,6 +564,38 @@ export function SiteHeader({ categories, settings }: SiteHeaderProps) {
                   </div>
                 );
               })}
+            </div>
+            <div className="shrink-0 border-t border-[#e5e7eb] bg-[#f8fbff] p-4 text-[13px] space-y-2">
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                Thông tin hỗ trợ
+              </div>
+              <a
+                href={phoneHref(hotline)}
+                className="flex items-center gap-2 font-bold text-slate-800 hover:text-primary"
+              >
+                <Phone size={15} className="text-primary" />
+                <span>{hotline}</span>
+              </a>
+              {settings["store.email"] ? (
+                <a
+                  href={`mailto:${settings["store.email"]}`}
+                  className="flex items-center gap-2 text-slate-600 hover:text-primary"
+                >
+                  <Mail size={15} className="text-slate-400" />
+                  <span className="truncate">{settings["store.email"]}</span>
+                </a>
+              ) : null}
+              {settings["store.zalo"] ? (
+                <a
+                  href={settings["store.zalo"]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 font-semibold text-sky-600 hover:text-sky-700"
+                >
+                  <Image src={zaloUrl} alt="Zalo" width={15} height={15} />
+                  <span>Chat Zalo hỗ trợ</span>
+                </a>
+              ) : null}
             </div>
           </div>
         </div>

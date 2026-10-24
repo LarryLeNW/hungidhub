@@ -30,6 +30,7 @@ import { OrderSummary } from "@/components/orders/order-summary";
 import type { AuthUser } from "@/lib/api/auth";
 import { ordersApi, type ApiOrder, type PaymentMethod } from "@/lib/api/orders";
 import { formatCurrency } from "@/lib/format";
+import { usePublicSettings } from "@/components/settings/settings-provider";
 
 export type CommerceProductSnapshot = {
   id: string;
@@ -156,6 +157,8 @@ function wishlistSnapshotFromSlug(slug: string): CommerceProductSnapshot {
 
 export function CommerceProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const settings = usePublicSettings();
+  const storeName = settings["store.name"] || "IDHUB";
   const [cart, setCart] = useState<CartLine[]>([]);
   const [wishlist, setWishlist] = useState<CommerceProductSnapshot[]>([]);
   const [drawer, setDrawer] = useState<CommerceDrawer | null>(
@@ -301,7 +304,7 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
     }
     if (effectiveDraft.paymentMethod === "wallet" && balance < subtotal) {
       setCheckoutError(
-        `Số dư ví AIHUB không đủ để thanh toán. Bạn đang có ${formatCurrency(balance)}, đơn hàng cần ${formatCurrency(subtotal)}. Vui lòng nạp thêm tiền.`,
+        `Số dư ví ${storeName} không đủ để thanh toán. Bạn đang có ${formatCurrency(balance)}, đơn hàng cần ${formatCurrency(subtotal)}. Vui lòng nạp thêm tiền.`,
       );
       return;
     }
@@ -864,6 +867,8 @@ function CheckoutDrawer({
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const isPage = surface === "page";
   const { balance, openDepositModal } = useWallet();
+  const settings = usePublicSettings();
+  const storeName = settings["store.name"] || "IDHUB";
   const isWalletShort = balance < subtotal;
 
   if (placedOrder) {
@@ -950,7 +955,7 @@ function CheckoutDrawer({
   }[] = [
     {
       value: "wallet",
-      label: "Số dư ví AIHUB",
+      label: `Số dư ví ${storeName}`,
       description: `Khả dụng: ${formatCurrency(balance)}${
         isWalletShort ? ` (Thiếu ${formatCurrency(subtotal - balance)})` : " · Thanh toán tức thì"
       }`,
@@ -1032,7 +1037,7 @@ function CheckoutDrawer({
                   <span>{label}</span>
                   {value === "wallet" && (
                     <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-extrabold text-emerald-800">
-                      Ví AIHUB
+                      Ví {storeName}
                     </span>
                   )}
                 </span>
@@ -1063,7 +1068,7 @@ function CheckoutDrawer({
             : draft.paymentMethod === "wallet"
               ? isWalletShort
                 ? `Số dư không đủ (Thiếu ${formatCurrency(subtotal - balance)})`
-                : "Thanh toán ngay bằng ví AIHUB"
+                : `Thanh toán ngay bằng ví ${storeName}`
               : "Đặt hàng & lấy mã QR"}
         </button>
       </div>

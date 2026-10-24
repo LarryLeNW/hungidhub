@@ -10,6 +10,7 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { assignCode, placeholderCode } from '../common/utils/codes.js';
 import { paginate } from '../common/utils/pagination.js';
 import { NotificationsService } from '../system/notifications.service.js';
+import { Setting } from '../system/entities/setting.entity.js';
 import {
   NotificationSection,
   NotificationTone,
@@ -225,16 +226,23 @@ export class WalletsService {
         });
         return {
           ...request,
-          paymentInstructions: this.depositPaymentInstructions(request),
+          paymentInstructions: await this.depositPaymentInstructions(request),
         };
       });
   }
 
-  depositPaymentInstructions(request: FundRequest): DepositPaymentInstructions | null {
+  async depositPaymentInstructions(request: FundRequest): Promise<DepositPaymentInstructions | null> {
     if (request.type !== FundRequestType.Deposit || request.status !== FundRequestStatus.Pending) {
       return null;
     }
-    const bank = getBankInfo();
+    const bankSetting = await this.dataSource.getRepository(Setting).findOneBy({ key: 'payment.bank' });
+    const bankVal = bankSetting?.value as Partial<BankInfo> | undefined;
+    const defaultBank = getBankInfo();
+    const bank: BankInfo = {
+      bankName: bankVal?.bankName || defaultBank.bankName,
+      accountNumber: bankVal?.accountNumber || defaultBank.accountNumber,
+      accountName: bankVal?.accountName || defaultBank.accountName,
+    };
     return {
       ...bank,
       amount: request.amount,
@@ -253,7 +261,7 @@ export class WalletsService {
     }
     return {
       ...request,
-      paymentInstructions: this.depositPaymentInstructions(request),
+      paymentInstructions: await this.depositPaymentInstructions(request),
     };
   }
 

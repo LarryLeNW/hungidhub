@@ -6,17 +6,18 @@ import { DEFAULT_PUBLIC_SETTINGS, type PublicSettings } from "@/lib/api/settings
 
 type SiteShellProps = {
   children: ReactNode;
+  settings?: PublicSettings | null;
 };
 
 /** Loads fresh navigation data and hands plain data to the client shell. */
-export async function SiteShell({ children }: SiteShellProps) {
+export async function SiteShell({ children, settings: propSettings }: SiteShellProps) {
   const [categories, settings] = await Promise.all([
     serverFetch<ApiCategory[]>("/categories"),
-    serverFetch<PublicSettings>("/settings/public"),
+    propSettings !== undefined ? Promise.resolve(propSettings) : serverFetch<PublicSettings>("/settings/public"),
   ]);
 
   return (
-    <SiteShellClient categories={categories ?? []} settings={{ ...DEFAULT_PUBLIC_SETTINGS, ...settings }}>
+    <SiteShellClient categories={categories ?? []} settings={{ ...DEFAULT_PUBLIC_SETTINGS, ...(settings || {}) }}>
       {children}
     </SiteShellClient>
   );

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { OrderLookup } from "./order-lookup";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
   title: "Đơn hàng của bạn",
-  description: "Quản lý và theo dõi các đơn hàng đã đặt tại AIHUB.",
+  description: `Quản lý và theo dõi các đơn hàng đã đặt tại ${siteConfig.name}.`,
 };
 
 export default function OrderLookupPage() {

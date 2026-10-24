@@ -17,19 +17,27 @@ const contactPatterns = [
   /0983449023/g,
 ];
 
-export function replaceBrandText(value: string) {
+export function replaceBrandText(
+  value: string,
+  overrides?: { brandName?: string; phone?: string; email?: string },
+) {
+  const targetPhoneDisplay = overrides?.phone || contactPhoneDisplay;
+  const targetPhone = targetPhoneDisplay.replace(/\s/g, "");
+  const targetEmail = overrides?.email || contactEmail;
+  const targetBrandName = overrides?.brandName || brandName;
+
   const normalizedContacts = contactPatterns
     .reduce(
-      (current, pattern) => current.replace(pattern, contactPhoneDisplay),
+      (current, pattern) => current.replace(pattern, targetPhoneDisplay),
       value,
     )
-    .replace(/zalo\.me\/0931\s*729\s*316/g, `zalo.me/${contactPhone}`)
-    .replace(/tel:0931\s*729\s*316/g, `tel:${contactPhone}`)
-    .replace(/support@khotaikhoan\.net/g, contactEmail)
-    .replace(/khotaikhoan\.net@gmail\.com/g, contactEmail);
+    .replace(/zalo\.me\/0931\s*729\s*316/g, `zalo.me/${targetPhone}`)
+    .replace(/tel:0931\s*729\s*316/g, `tel:${targetPhone}`)
+    .replace(/support@khotaikhoan\.net/g, targetEmail)
+    .replace(/khotaikhoan\.net@gmail\.com/g, targetEmail);
 
   return brandPatterns.reduce(
-    (current, pattern) => current.replace(pattern, brandName),
+    (current, pattern) => current.replace(pattern, targetBrandName),
     normalizedContacts,
   );
 }

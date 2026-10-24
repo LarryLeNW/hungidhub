@@ -45,6 +45,19 @@ export function SiteFooter({
               {hotline}
             </a>
           </p>
+          {settings["store.zalo"] ? (
+            <p className="mt-1 text-sm font-bold text-slate-700">
+              Zalo:{" "}
+              <a
+                href={settings["store.zalo"]}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary-strong"
+              >
+                {hotline}
+              </a>
+            </p>
+          ) : null}
         </div>
         <div>
           <h3 className="font-extrabold text-slate-950">Danh mục</h3>

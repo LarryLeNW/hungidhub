@@ -56,6 +56,8 @@ export type PaymentInstructions = BankInfo & {
   method: PaymentMethod;
   amount: number;
   transferContent: string;
+  hotline?: string;
+  zalo?: string;
 };
 
 const ORDER_RELATIONS = {
@@ -373,7 +375,19 @@ export class OrdersService {
   }
 
   async paymentInstructions(order: Order): Promise<PaymentInstructions> {
-    const bank = getBankInfo();
+    const bankSetting = await this.settings.findOneBy({ key: 'payment.bank' });
+    const bankVal = bankSetting?.value as Partial<BankInfo> | undefined;
+    const defaultBank = getBankInfo();
+    const bank: BankInfo = {
+      bankName: bankVal?.bankName || defaultBank.bankName,
+      accountNumber: bankVal?.accountNumber || defaultBank.accountNumber,
+      accountName: bankVal?.accountName || defaultBank.accountName,
+    };
+    const hotlineSetting = await this.settings.findOneBy({ key: 'store.hotline' });
+    const zaloSetting = await this.settings.findOneBy({ key: 'store.zalo' });
+    const hotline = (hotlineSetting?.value as string) || '0931 729 316';
+    const zalo = (zaloSetting?.value as string) || `https://zalo.me/${hotline.replace(/\s/g, '')}`;
+
     return {
       method: order.paymentMethod,
       amount: order.total,
@@ -381,6 +395,8 @@ export class OrdersService {
         order.payments?.find((payment) => payment.status === PaymentStatus.Pending)
           ?.transferContent ?? transferContentFor(order.code, order.userId),
       ...bank,
+      hotline,
+      zalo,
     };
   }
 

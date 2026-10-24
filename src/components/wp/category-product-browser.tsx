@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ProductCard } from "@/features/catalog/components/product-card";
 import type { Product } from "@/types/commerce";
@@ -16,6 +16,7 @@ export function CategoryProductBrowser({
   title: string;
   products: Product[];
 }) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [sortMode, setSortMode] = useState<SortMode>("best");
   const [page, setPage] = useState(1);
 
@@ -45,13 +46,26 @@ export function CategoryProductBrowser({
   const safePage = Math.min(page, totalPages);
   const visibleProducts = sortedProducts.slice((safePage - 1) * pageSize, safePage * pageSize);
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (sectionRef.current) {
+      const offset = 80;
+      const elementPosition = sectionRef.current.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.scrollY - offset;
+      window.scrollTo({
+        top: Math.max(0, offsetPosition),
+        behavior: "smooth",
+      });
+    }
+  };
+
   function chooseSort(mode: SortMode) {
     setSortMode(mode);
     setPage(1);
   }
 
   return (
-    <section className="ktk-category-frame pb-8">
+    <section ref={sectionRef} className="ktk-category-frame pb-8">
       <div className="mb-5 flex flex-col gap-3 border-t border-[#e5e7eb] pt-6 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[24px] font-extrabold text-slate-950 md:text-[25px]">
           {title}
@@ -90,7 +104,7 @@ export function CategoryProductBrowser({
             type="button"
             aria-label="Trang trước"
             disabled={safePage === 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            onClick={() => handlePageChange(Math.max(1, safePage - 1))}
           >
             <ChevronLeft size={18} />
           </button>
@@ -105,7 +119,7 @@ export function CategoryProductBrowser({
                     : "focus-ring size-10 rounded-md border border-border bg-white text-sm font-extrabold text-slate-700"
                 }
                 type="button"
-                onClick={() => setPage(pageNumber)}
+                onClick={() => handlePageChange(pageNumber)}
               >
                 {pageNumber}
               </button>
@@ -116,7 +130,7 @@ export function CategoryProductBrowser({
             type="button"
             aria-label="Trang sau"
             disabled={safePage === totalPages}
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            onClick={() => handlePageChange(Math.min(totalPages, safePage + 1))}
           >
             <ChevronRight size={18} />
           </button>

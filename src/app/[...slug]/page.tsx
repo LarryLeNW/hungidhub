@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AboutTemplate } from "@/components/wp/about-template";
 import { ArticleTemplate } from "@/components/wp/article-template";
+import { HowToBuyTemplate } from "@/components/wp/how-to-buy-template";
 import { CategoryTemplate } from "@/components/wp/category-template";
 import { ProductTemplate } from "@/components/wp/product-template";
 import { buildQuery, type ApiCategory, type ApiProduct, type Paginated } from "@/lib/api/catalog";
@@ -76,7 +77,12 @@ export async function generateMetadata(props: PageProps<"/[...slug]">): Promise<
       };
     case "page":
       return {
-        title: resolved.page.slug === "gioi-thieu" ? "Giới thiệu Idhub" : resolved.page.title,
+        title:
+          resolved.page.slug === "gioi-thieu"
+            ? "Giới thiệu Idhub"
+            : resolved.page.slug === "huong-dan-mua-hang"
+              ? "Hướng dẫn mua hàng & thanh toán"
+              : resolved.page.title,
         description: replaceBrandText(resolved.page.excerpt ?? ""),
       };
   }
@@ -119,6 +125,9 @@ export default async function CatchAllPage(props: PageProps<"/[...slug]">) {
     case "page": {
       if (resolved.page.slug === "gioi-thieu" || resolved.page.template === "about") {
         return <AboutTemplate page={toContentDoc(resolved.page)} />;
+      }
+      if (resolved.page.slug === "huong-dan-mua-hang") {
+        return <HowToBuyTemplate page={toContentDoc(resolved.page)} />;
       }
       const latest = await serverFetch<Paginated<ApiPost>>(`/posts${buildQuery({ limit: 5 })}`);
       return <ArticleTemplate page={toContentDoc(resolved.page)} latestPosts={latest?.items ?? []} />;

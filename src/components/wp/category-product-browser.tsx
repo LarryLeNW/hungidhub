@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Grid2X2, Grid3X3, List } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ProductCard } from "@/features/catalog/components/product-card";
 import type { Product } from "@/types/commerce";
 
@@ -44,8 +44,6 @@ export function CategoryProductBrowser({
   const totalPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const visibleProducts = sortedProducts.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const firstIndex = sortedProducts.length ? (safePage - 1) * pageSize + 1 : 0;
-  const lastIndex = Math.min(safePage * pageSize, sortedProducts.length);
 
   function chooseSort(mode: SortMode) {
     setSortMode(mode);
@@ -54,24 +52,11 @@ export function CategoryProductBrowser({
 
   return (
     <section className="ktk-category-frame pb-8">
-      <div className="mb-5 flex flex-col gap-3 border-t border-[#e5e7eb] pt-6 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-end justify-between gap-4">
-          <h1 className="text-[24px] font-extrabold text-slate-950 md:text-[25px]">
-            {title}
-          </h1>
-          <p className="hidden text-sm font-semibold text-slate-700 md:block">
-            Xem : {firstIndex} / {lastIndex} / {sortedProducts.length}
-          </p>
-        </div>
-        <div className="hidden items-center justify-between gap-3 md:flex">
-          <p className="text-sm font-semibold text-slate-700 md:hidden">
-            Hiển thị {firstIndex}-{lastIndex} của {sortedProducts.length} sản phẩm
-          </p>
-          <div className="hidden items-center gap-2 text-slate-400 md:flex">
-            <Grid2X2 size={18} aria-hidden="true" />
-            <Grid3X3 size={18} aria-hidden="true" />
-            <List size={18} aria-hidden="true" />
-          </div>
+      <div className="mb-5 flex flex-col gap-3 border-t border-[#e5e7eb] pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-[24px] font-extrabold text-slate-950 md:text-[25px]">
+          {title}
+        </h1>
+        <div className="flex items-center gap-3">
           <select
             className="focus-ring h-9 rounded-[5px] border border-[#d8e2ee] bg-white px-3 text-[13px] font-semibold text-slate-600"
             value={sortMode}

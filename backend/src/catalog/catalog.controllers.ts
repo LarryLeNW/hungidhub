@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,8 +11,13 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -32,6 +38,7 @@ import {
   ReviewStatus,
 } from './catalog.enums.js';
 import { CategoriesService } from './categories.service.js';
+import { CatalogExcelService } from './catalog-excel.service.js';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto.js';
 import { ImportInventoryDto } from './dto/inventory.dto.js';
 import { CreateReviewDto, UpdateReviewStatusDto } from './dto/review.dto.js';
@@ -101,7 +108,32 @@ export class ProductsController {
 @Roles(Role.Admin)
 @Controller('admin/categories')
 export class AdminCategoriesController {
-  constructor(private readonly categories: CategoriesService) {}
+  constructor(
+    private readonly categories: CategoriesService,
+    private readonly excel: CatalogExcelService,
+  ) {}
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export categories to Excel' })
+  exportExcel(@Res() res: Response) {
+    return this.excel.exportCategories(res);
+  }
+
+  @Get('template')
+  @ApiOperation({ summary: 'Download category import template' })
+  templateExcel(@Res() res: Response) {
+    return this.excel.templateCategories(res);
+  }
+
+  @Post('import')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Import categories from Excel file' })
+  importExcel(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file Excel');
+    }
+    return this.excel.importCategories(file.buffer);
+  }
 
   @Get()
   @ApiOperation({
@@ -136,7 +168,32 @@ export class AdminCategoriesController {
 @Roles(Role.Admin)
 @Controller('admin/products')
 export class AdminProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly excel: CatalogExcelService,
+  ) {}
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export products to Excel' })
+  exportExcel(@Res() res: Response) {
+    return this.excel.exportProducts(res);
+  }
+
+  @Get('template')
+  @ApiOperation({ summary: 'Download product import template' })
+  templateExcel(@Res() res: Response) {
+    return this.excel.templateProducts(res);
+  }
+
+  @Post('import')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Import products from Excel file' })
+  importExcel(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file Excel');
+    }
+    return this.excel.importProducts(file.buffer);
+  }
 
   @Get()
   @ApiOperation({ summary: 'All products (any status) with per-variant stock' })

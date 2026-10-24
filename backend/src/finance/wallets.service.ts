@@ -257,6 +257,17 @@ export class WalletsService {
     };
   }
 
+  async findFundRequestById(id: number) {
+    const request = await this.fundRequests.findOne({
+      where: { id },
+      relations: { user: true },
+    });
+    if (!request) {
+      throw new NotFoundException(`Không tìm thấy yêu cầu #${id}`);
+    }
+    return request;
+  }
+
   /** Admin "Giao dịch": the full wallet ledger with the account owner. */
   async listTransactionsAdmin(
     query: PaginationQueryDto,

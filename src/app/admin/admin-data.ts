@@ -18,6 +18,7 @@ import {
   type AdminTransaction,
   type AdminVariant,
   type ApiPromotion,
+  type ApiFundRequest,
 } from "@/lib/api/admin";
 import { orderStatusLabels, paymentMethodLabels, type ApiOrder } from "@/lib/api/orders";
 import { formatDateTime, timeAgo } from "@/lib/dates";
@@ -30,6 +31,7 @@ export type AdminSection =
   | "products"
   | "inventory"
   | "customers"
+  | "funds"
   | "transactions"
   | "categories"
   | "promotions"
@@ -50,6 +52,9 @@ export const RELEASED_SECTIONS: readonly AdminSection[] = [
   "products",
   "inventory",
   "customers",
+  "funds",
+  "transactions",
+  "reports",
   "categories",
   "promotions",
   "content",
@@ -127,7 +132,7 @@ const priorityLabels: Record<AdminTicket["priority"], string> = {
   high: "Cao",
 };
 
-const reportStatusLabels: Record<AdminReport["status"], string> = {
+export const reportStatusLabels: Record<AdminReport["status"], string> = {
   generating: "Đang tạo",
   ready: "Sẵn sàng",
   failed: "Lỗi",
@@ -231,6 +236,36 @@ function customerToRow(user: AdminCustomer): DataRow {
     orders: String(user.orderCount ?? 0),
     spend: formatCurrency(user.totalSpent ?? 0),
     status: !user.isActive ? "Tạm khóa" : isNew ? "Mới" : "Hoạt động",
+  };
+}
+
+export const fundRequestStatusLabels: Record<ApiFundRequest["status"], string> = {
+  pending: "Chờ duyệt",
+  processing: "Đang xử lý",
+  completed: "Đã duyệt",
+  rejected: "Đã từ chối",
+};
+
+export const fundRequestTypeLabels: Record<ApiFundRequest["type"], string> = {
+  deposit: "Nạp tiền",
+  withdrawal: "Rút tiền",
+};
+
+function fundRequestToRow(request: ApiFundRequest): DataRow {
+  const user = request.user;
+  const isPending = request.status === "pending" || request.status === "processing";
+  return {
+    id: request.code,
+    _ref: String(request.id),
+    _status: request.status,
+    _action: isPending ? "Duyệt nạp" : "",
+    type: fundRequestTypeLabels[request.type] || request.type,
+    account: user?.fullName ?? user?.email ?? "—",
+    amount: formatCurrency(request.amount),
+    bank: request.bankName ? `${request.bankName} - ${request.bankAccountNumber || ""}` : (request.transferContent || "—"),
+    note: request.note || request.rejectReason || "—",
+    status: fundRequestStatusLabels[request.status] || request.status,
+    date: timeAgo(request.createdAt),
   };
 }
 
@@ -391,6 +426,8 @@ async function fetchRows(section: ModuleSection): Promise<DataRow[]> {
       return (await adminApi.listInventory({ limit: 100 })).items.map(inventoryToRow);
     case "customers":
       return (await adminApi.listUsers({ limit: 100, role: "customer" })).items.map(customerToRow);
+    case "funds":
+      return (await adminApi.listFundRequests({ limit: 100 })).items.map(fundRequestToRow);
     case "transactions":
       return (await adminApi.listTransactions({ limit: 100 })).items.map(transactionToRow);
     case "categories":
@@ -419,6 +456,10 @@ async function fetchRows(section: ModuleSection): Promise<DataRow[]> {
 export async function runRowAction(section: ModuleSection, row: DataRow): Promise<string> {
   const id = Number(row._ref);
   switch (section) {
+    case "funds": {
+      await adminApi.approveFundRequest(id);
+      return `Đã duyệt yêu cầu nạp tiền ${row.id}.`;
+    }
     case "products": {
       const next = row._status === "active" ? "hidden" : "active";
       await adminApi.setProductStatus(id, next);
@@ -622,6 +663,6 @@ export function takeQueuedToast(): string | null {
 
 export function sectionForNotification(notification: AdminNotification): AdminSection {
   const section = notification.section as string | null;
-  if (section === "deposits") return "overview";
+  if (section === "deposits" || section === "funds") return "funds";
   return (section as AdminSection | null) ?? "overview";
 }

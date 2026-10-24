@@ -1,6 +1,7 @@
 import type { AuthUser } from "./auth";
 import { buildQuery, type ApiCategory, type ApiProduct, type ApiReview, type ApiVariant, type Paginated } from "./catalog";
-import { apiFetch } from "./client";
+import { apiFetch, API_URL, ApiError, refreshSession } from "./client";
+import { getTokens } from "./token-store";
 import type { ApiContentBlock, ApiPage, ApiPost, ApiPostCategory } from "./content";
 import type { ApiOrder, OrderStatus } from "./orders";
 
@@ -282,6 +283,64 @@ export type PostInput = {
 
 type PageParams = { page?: number; limit?: number; search?: string };
 
+export type ImportExcelResult = {
+  totalRows: number;
+  successCount: number;
+  createdCount: number;
+  updatedCount: number;
+  errors: string[];
+};
+
+export async function downloadExcelFile(path: string, defaultFilename: string): Promise<void> {
+  let tokens = getTokens();
+  let res = await fetch(`${API_URL}${path}`, {
+    headers: {
+      ...(tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+    },
+  });
+
+  if (res.status === 401 && tokens?.refreshToken) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      tokens = getTokens();
+      res = await fetch(`${API_URL}${path}`, {
+        headers: {
+          ...(tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+        },
+      });
+    }
+  }
+
+  if (!res.ok) {
+    let msg = "Không thể tải file Excel.";
+    try {
+      const errJson = await res.json();
+      if (errJson && errJson.message) {
+        msg = Array.isArray(errJson.message) ? errJson.message.join(", ") : errJson.message;
+      }
+    } catch {
+      // ignore
+    }
+    throw new ApiError(res.status, msg);
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const disposition = res.headers.get("Content-Disposition");
+  let filename = defaultFilename;
+  if (disposition) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = decodeURIComponent(match[1]);
+  }
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 const json = <T,>(path: string, method: "POST" | "PATCH" | "PUT" | "DELETE", body?: unknown) =>
   apiFetch<T>(path, { method, body: body ?? {} });
 
@@ -312,6 +371,13 @@ export const adminApi = {
   setProductStatus: (id: number, status: "draft" | "active" | "hidden") =>
     json<AdminProduct>(`/admin/products/${id}/status/${status}`, "PATCH"),
   deleteProduct: (id: number) => json<void>(`/admin/products/${id}`, "DELETE"),
+  exportProductsExcel: () => downloadExcelFile("/admin/products/export", "danh-sach-san-pham.xlsx"),
+  downloadProductsTemplate: () => downloadExcelFile("/admin/products/template", "mau-nhap-san-pham.xlsx"),
+  importProductsExcel: (file: File) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return apiFetch<ImportExcelResult>("/admin/products/import", { method: "POST", body: form });
+  },
   addVariant: (productId: number, input: VariantInput) => json<AdminVariant>(`/admin/products/${productId}/variants`, "POST", input),
   updateVariant: (id: number, input: Partial<VariantInput>) => json<AdminVariant>(`/admin/variants/${id}`, "PATCH", input),
   deleteVariant: (id: number) => json<void>(`/admin/variants/${id}`, "DELETE"),
@@ -332,12 +398,20 @@ export const adminApi = {
   getUser: (id: number) => apiFetch<AuthUser>(`/users/${id}`),
   setUserStatus: (id: number, isActive: boolean) => json<AuthUser>(`/users/${id}/status`, "PATCH", { isActive }),
   setUserRole: (id: number, role: "admin" | "customer") => json<AuthUser>(`/users/${id}/role`, "PATCH", { role }),
+  exportCustomersExcel: () => downloadExcelFile("/users/export", "danh-sach-khach-hang.xlsx"),
+  downloadCustomersTemplate: () => downloadExcelFile("/users/template", "mau-nhap-khach-hang.xlsx"),
+  importCustomersExcel: (file: File) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return apiFetch<ImportExcelResult>("/users/import", { method: "POST", body: form });
+  },
 
   // finance
   listTransactions: (params: PageParams & { type?: string; status?: string } = {}) =>
     apiFetch<Paginated<AdminTransaction>>(`/admin/transactions${buildQuery(params)}`),
   listFundRequests: (params: PageParams & { status?: string } = {}) =>
     apiFetch<Paginated<ApiFundRequest>>(`/admin/fund-requests${buildQuery(params)}`),
+  getFundRequest: (id: number) => apiFetch<ApiFundRequest>(`/admin/fund-requests/${id}`),
   approveFundRequest: (id: number, note?: string) =>
     json<ApiFundRequest>(`/admin/fund-requests/${id}/approve`, "POST", note ? { note } : {}),
   rejectFundRequest: (id: number, reason: string) => json<ApiFundRequest>(`/admin/fund-requests/${id}/reject`, "POST", { reason }),
@@ -347,6 +421,13 @@ export const adminApi = {
   createCategory: (input: CategoryInput) => json<AdminCategory>("/admin/categories", "POST", input),
   updateCategory: (id: number, input: Partial<CategoryInput>) => json<AdminCategory>(`/admin/categories/${id}`, "PATCH", input),
   deleteCategory: (id: number) => json<void>(`/admin/categories/${id}`, "DELETE"),
+  exportCategoriesExcel: () => downloadExcelFile("/admin/categories/export", "danh-sach-danh-muc.xlsx"),
+  downloadCategoriesTemplate: () => downloadExcelFile("/admin/categories/template", "mau-nhap-danh-muc.xlsx"),
+  importCategoriesExcel: (file: File) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return apiFetch<ImportExcelResult>("/admin/categories/import", { method: "POST", body: form });
+  },
 
   // promotions
   listPromotions: (params: PageParams = {}) => apiFetch<Paginated<ApiPromotion>>(`/admin/promotions${buildQuery(params)}`),
@@ -391,6 +472,7 @@ export const adminApi = {
 
   // reports & settings
   listReports: (params: PageParams = {}) => apiFetch<Paginated<AdminReport>>(`/admin/reports${buildQuery(params)}`),
+  getReport: (id: number) => apiFetch<AdminReport>(`/admin/reports/${id}`),
   reportKinds: () => apiFetch<Record<string, string>>("/admin/reports/kinds"),
   generateReport: (input: { kind: string; periodStart: string; periodEnd: string; name?: string }) =>
     json<AdminReport>("/admin/reports", "POST", input),

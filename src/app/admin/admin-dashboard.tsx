@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
+  ArrowDownCircle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
@@ -17,7 +18,9 @@ import {
   Construction,
   ExternalLink,
   Eye,
+  FileDown,
   FileText,
+  FileUp,
   Headphones,
   LayoutDashboard,
   LoaderCircle,
@@ -42,7 +45,7 @@ import {
 } from "lucide-react";
 import { IdhubLogo } from "@/components/Idhub-logo";
 import { useAuth } from "@/components/auth/auth-provider";
-import { adminApi, type AdminNotification, type AdminStats } from "@/lib/api/admin";
+import { adminApi, type AdminNotification, type AdminStats, type AdminReport, type ApiFundRequest, type ImportExcelResult } from "@/lib/api/admin";
 import { confirmDanger, promptText } from "./forms/dialogs";
 import { roleLabels } from "@/lib/api/auth";
 import { formatDateTime, timeAgo } from "@/lib/dates";
@@ -59,6 +62,9 @@ import { SettingForm } from "./forms/setting-form";
 import { TicketDetail } from "./forms/ticket-detail";
 import {
   orderToRow,
+  fundRequestStatusLabels,
+  fundRequestTypeLabels,
+  reportStatusLabels,
   isReleased,
   runRowAction,
   sectionForNotification,
@@ -95,6 +101,14 @@ const navGroups: { label: string; items: { id: ModuleId; label: string; icon: Lu
       { id: "orders", label: "Đơn hàng", icon: ShoppingCart, badge: "orders" },
       { id: "products", label: "Sản phẩm", icon: Package },
       { id: "categories", label: "Danh mục", icon: Tags },
+    ],
+  },
+  {
+    label: "Tài chính",
+    items: [
+      { id: "funds", label: "Nạp tiền ví", icon: ArrowDownCircle, badge: "deposits" },
+      { id: "transactions", label: "Sổ cái giao dịch", icon: WalletCards },
+      { id: "reports", label: "Báo cáo doanh thu", icon: BarChart3 },
     ],
   },
   {
@@ -175,6 +189,21 @@ const moduleDefinitions: Record<ModuleSection, ModuleDefinition> = {
       { key: "orders", label: "Đơn hàng" },
       { key: "spend", label: "Tổng chi" },
       { key: "status", label: "Trạng thái" },
+    ],
+  },
+  funds: {
+    title: "Yêu cầu nạp tiền",
+    description: "Danh sách và duyệt các yêu cầu nạp tiền vào ví của khách hàng.",
+    icon: ArrowDownCircle,
+    columns: [
+      { key: "id", label: "Mã YC" },
+      { key: "type", label: "Loại" },
+      { key: "account", label: "Khách hàng" },
+      { key: "amount", label: "Số tiền" },
+      { key: "bank", label: "Ngân hàng / STK" },
+      { key: "note", label: "Ghi chú" },
+      { key: "status", label: "Trạng thái" },
+      { key: "date", label: "Thời gian" },
     ],
   },
   transactions: {
@@ -644,7 +673,7 @@ function TrafficView({ stats, error, onRefresh }: { stats: AdminStats | null; er
   );
 }
 
-function ManagementView({ definition, rows: allRows, loading, query, onQueryChange, onCreate, onInspect, onQuickUpdate, onDelete }: {
+function ManagementView({ definition, rows: allRows, loading, query, onQueryChange, onCreate, onInspect, onQuickUpdate, onDelete, onExportExcel, onImportExcel }: {
   definition: ModuleDefinition;
   rows: DataRow[];
   loading: boolean;
@@ -654,6 +683,8 @@ function ManagementView({ definition, rows: allRows, loading, query, onQueryChan
   onInspect: (row: DataRow) => void;
   onQuickUpdate: (row: DataRow) => void;
   onDelete?: (row: DataRow) => void;
+  onExportExcel?: () => void;
+  onImportExcel?: () => void;
 }) {
   const [statusFilter, setStatusFilter] = useState("Tất cả trạng thái");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -693,6 +724,16 @@ function ManagementView({ definition, rows: allRows, loading, query, onQueryChan
         <div className={styles.titleIcon}><Icon size={23} /></div>
         <div><h1>{definition.title}</h1><p>{definition.description}</p></div>
         <div className={styles.pageActions}>
+          {onExportExcel && (
+            <button type="button" className={styles.secondaryButton} onClick={onExportExcel}>
+              <FileDown size={16} /> Xuất Excel
+            </button>
+          )}
+          {onImportExcel && (
+            <button type="button" className={styles.secondaryButton} onClick={onImportExcel}>
+              <FileUp size={16} /> Nhập Excel
+            </button>
+          )}
           {definition.createLabel && <button className={styles.primaryButton} onClick={onCreate}><Plus size={17} /> {definition.createLabel}</button>}
         </div>
       </section>
@@ -782,6 +823,242 @@ function ManagementView({ definition, rows: allRows, loading, query, onQueryChan
   );
 }
 
+
+function ExcelImportModal({
+  type,
+  onClose,
+  onSuccess,
+}: {
+  type: "products" | "categories" | "customers";
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const dialogRef = useDialogBehavior(onClose);
+  const [file, setFile] = useState<File | null>(null);
+  const [pending, setPending] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportExcelResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const title =
+    type === "products"
+      ? "Nhập dữ liệu Sản phẩm từ Excel"
+      : type === "categories"
+        ? "Nhập dữ liệu Danh mục từ Excel"
+        : "Nhập dữ liệu Khách hàng từ Excel";
+  const badge = type === "products" ? "SẢN PHẨM" : type === "categories" ? "DANH MỤC" : "KHÁCH HÀNG";
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      if (type === "products") {
+        await adminApi.downloadProductsTemplate();
+      } else if (type === "categories") {
+        await adminApi.downloadCategoriesTemplate();
+      } else {
+        await adminApi.downloadCustomersTemplate();
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không tải được file mẫu.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  const handleImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      setError("Vui lòng chọn file Excel để nhập.");
+      return;
+    }
+    setPending(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const res =
+        type === "products"
+          ? await adminApi.importProductsExcel(file)
+          : type === "categories"
+            ? await adminApi.importCategoriesExcel(file)
+            : await adminApi.importCustomersExcel(file);
+      setResult(res);
+      onSuccess(
+        `Đã xử lý xong: ${res.successCount} thành công (${res.createdCount} thêm mới, ${res.updatedCount} cập nhật).`,
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Nhập dữ liệu thất bại.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div
+      className={styles.modalLayer}
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="excel-import-title"
+      >
+        <div className={styles.modalHeader}>
+          <div>
+            <span>{badge} · EXCEL</span>
+            <h2 id="excel-import-title">{title}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Đóng">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleImport}>
+          <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "rgba(34, 197, 94, 0.05)",
+                border: "1px dashed rgba(34, 197, 94, 0.25)",
+                borderRadius: "8px",
+                padding: "12px 16px",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>Chưa có file mẫu chuẩn?</div>
+                <div style={{ fontSize: "11px", color: "#94a3b8" }}>
+                  Tải file mẫu để điền đúng định dạng. Cột có dấu <strong style={{ color: "#ef4444" }}>(*)</strong> là bắt buộc {type === "products" ? "(Tên sản phẩm, Tên gói, Giá bán)" : type === "categories" ? "(Tên danh mục)" : "(Họ và tên, Email)"}.
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={handleDownloadTemplate}
+                disabled={downloadingTemplate}
+                style={{ minHeight: "32px", fontSize: "12px", whiteSpace: "nowrap" }}
+              >
+                <FileDown size={15} />
+                {downloadingTemplate ? "Đang tải…" : "Tải file mẫu"}
+              </button>
+            </div>
+
+            <div>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#cbd5e1", marginBottom: "8px" }}>
+                Chọn file Excel (.xlsx, .xls, .csv)
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setFile(f);
+                  setError(null);
+                  setResult(null);
+                }}
+                style={{ display: "none" }}
+              />
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: "2px dashed #334155",
+                  borderRadius: "10px",
+                  padding: "24px 16px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: file ? "rgba(34, 197, 94, 0.08)" : "#0b101b",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <FileUp size={28} style={{ margin: "0 auto 8px", color: file ? "#22c55e" : "#64748b" }} />
+                {file ? (
+                  <div>
+                    <div style={{ color: "#22c55e", fontWeight: 600, fontSize: "14px" }}>{file.name}</div>
+                    <div style={{ color: "#94a3b8", fontSize: "11px", marginTop: "2px" }}>
+                      {(file.size / 1024).toFixed(1)} KB — Bấm để chọn file khác
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ color: "#e2e8f0", fontSize: "13px", fontWeight: 500 }}>
+                      Nhấp để chọn file hoặc kéo thả vào đây
+                    </div>
+                    <div style={{ color: "#64748b", fontSize: "11px", marginTop: "4px" }}>
+                      Hỗ trợ định dạng .xlsx, .xls, .csv
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {error && (
+              <p role="alert" className={styles.inlineAlert} style={{ margin: 0 }}>
+                {error}
+              </p>
+            )}
+
+            {result && (
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.8)",
+                  border: "1px solid #1e293b",
+                  borderRadius: "8px",
+                  padding: "14px",
+                }}
+              >
+                <div style={{ display: "flex", gap: "16px", marginBottom: result.errors.length ? "10px" : "0" }}>
+                  <div>
+                    <span style={{ fontSize: "11px", color: "#94a3b8" }}>Tổng số dòng:</span>{" "}
+                    <strong style={{ color: "#f8fafc" }}>{result.totalRows}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "11px", color: "#94a3b8" }}>Thành công:</span>{" "}
+                    <strong style={{ color: "#22c55e" }}>{result.successCount}</strong> ({result.createdCount} mới,{" "}
+                    {result.updatedCount} cập nhật)
+                  </div>
+                </div>
+
+                {result.errors.length > 0 && (
+                  <div style={{ marginTop: "8px", borderTop: "1px solid #334155", paddingTop: "8px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#f87171", marginBottom: "4px" }}>
+                      Có {result.errors.length} cảnh báo / lỗi:
+                    </div>
+                    <div style={{ maxHeight: "120px", overflowY: "auto", fontSize: "11px", color: "#fca5a5" }}>
+                      {result.errors.map((err, idx) => (
+                        <div key={idx} style={{ padding: "2px 0" }}>
+                          • {err}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.secondaryButton} onClick={onClose}>
+              {result ? "Đóng" : "Hủy"}
+            </button>
+            <button type="submit" className={styles.primaryButton} disabled={!file || pending}>
+              {pending ? <LoaderCircle size={16} className="animate-spin" /> : <FileUp size={16} />}
+              {pending ? "Đang xử lý..." : "Tiến hành nhập"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 /** Generates a report for a period; the only "create" flow still needed in this dashboard. */
 function ReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: (message: string) => void }) {
   const dialogRef = useDialogBehavior(onClose);
@@ -844,6 +1121,364 @@ function DetailModal({ definition, row, onClose, onUpdate }: { definition: Modul
   );
 }
 
+function ReportDetailModal({
+  reportId,
+  onClose,
+}: {
+  reportId: number;
+  onClose: () => void;
+}) {
+  const dialogRef = useDialogBehavior(onClose);
+  const [report, setReport] = useState<AdminReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    adminApi
+      .getReport(reportId)
+      .then((data) => {
+        if (active) setReport(data);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Không tải được báo cáo");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reportId]);
+
+  const result = Array.isArray(report?.params?.result) ? (report?.params?.result as Record<string, unknown>[]) : [];
+
+  return (
+    <div className={styles.modalLayer} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="report-detail-title">
+        <div className={styles.modalHeader}>
+          <div>
+            <span>BÁO CÁO DOANH THU & PHÂN TÍCH</span>
+            <h2 id="report-detail-title">{report?.name || `Báo cáo #${reportId}`}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Đóng"><X size={20} /></button>
+        </div>
+
+        {loading ? (
+          <div className={styles.modalLoading}>
+            <LoaderCircle size={22} className="animate-spin" />
+            <span>Đang tải số liệu báo cáo…</span>
+          </div>
+        ) : error ? (
+          <p role="alert" className={styles.inlineAlert}>{error}</p>
+        ) : report ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "16px 20px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "12px",
+                background: "rgba(255, 255, 255, 0.03)",
+                padding: "12px 16px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+              }}
+            >
+              <div>
+                <small style={{ color: "#8b97ab", display: "block" }}>Kỳ dữ liệu</small>
+                <strong>{report.periodLabel}</strong>
+              </div>
+              <div>
+                <small style={{ color: "#8b97ab", display: "block" }}>Loại báo cáo</small>
+                <strong>{REPORT_KINDS[report.kind] || report.kind}</strong>
+              </div>
+              <div>
+                <small style={{ color: "#8b97ab", display: "block" }}>Người tạo</small>
+                <strong>{report.createdBy?.fullName || "Hệ thống"}</strong>
+              </div>
+              <div>
+                <small style={{ color: "#8b97ab", display: "block" }}>Trạng thái</small>
+                <StatusBadge>{reportStatusLabels[report.status] || report.status}</StatusBadge>
+              </div>
+            </div>
+
+            {report.status === "failed" ? (
+              <p className={styles.inlineAlert}>Tạo báo cáo thất bại: {String(report.params?.errorMessage || "Lỗi không xác định")}</p>
+            ) : result.length === 0 ? (
+              <div className={styles.emptyState}>
+                <Search size={24} />
+                <strong>Không có dữ liệu trong kỳ này</strong>
+                <span>Chưa phát sinh giao dịch hoặc đơn hàng trong khoảng thời gian đã chọn.</span>
+              </div>
+            ) : (
+              <div className={styles.tableScroll} style={{ maxHeight: "380px" }}>
+                <table className={`${styles.dataTable} ${styles.managementTable}`}>
+                  <thead>
+                    {report.kind === "revenue_by_product" && (
+                      <tr>
+                        <th>Tên sản phẩm</th>
+                        <th style={{ textAlign: "right" }}>Số lượng đã bán</th>
+                        <th style={{ textAlign: "right" }}>Doanh thu</th>
+                      </tr>
+                    )}
+                    {report.kind === "revenue_by_category" && (
+                      <tr>
+                        <th>Danh mục</th>
+                        <th style={{ textAlign: "right" }}>Số đơn hàng</th>
+                        <th style={{ textAlign: "right" }}>Doanh thu</th>
+                      </tr>
+                    )}
+                    {report.kind === "refund_rate" && (
+                      <tr>
+                        <th>Ngày</th>
+                        <th style={{ textAlign: "right" }}>Tổng đơn</th>
+                        <th style={{ textAlign: "right" }}>Đã hoàn tiền</th>
+                        <th style={{ textAlign: "right" }}>Đã hủy</th>
+                      </tr>
+                    )}
+                    {report.kind === "customers" && (
+                      <tr>
+                        <th>Khách hàng</th>
+                        <th>Email</th>
+                        <th>Ngày đăng ký</th>
+                        <th style={{ textAlign: "right" }}>Đơn hàng</th>
+                        <th style={{ textAlign: "right" }}>Tổng chi tiêu</th>
+                      </tr>
+                    )}
+                  </thead>
+                  <tbody>
+                    {report.kind === "revenue_by_product" &&
+                      result.map((row, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{String(row.productName || "—")}</strong></td>
+                          <td style={{ textAlign: "right" }}>{Number(row.quantity || 0).toLocaleString("vi-VN")}</td>
+                          <td style={{ textAlign: "right" }}><strong>{formatCurrency(Number(row.revenue || 0))}</strong></td>
+                        </tr>
+                      ))}
+                    {report.kind === "revenue_by_category" &&
+                      result.map((row, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{String(row.category || "Chưa phân loại")}</strong></td>
+                          <td style={{ textAlign: "right" }}>{Number(row.orders || 0).toLocaleString("vi-VN")}</td>
+                          <td style={{ textAlign: "right" }}><strong>{formatCurrency(Number(row.revenue || 0))}</strong></td>
+                        </tr>
+                      ))}
+                    {report.kind === "refund_rate" &&
+                      result.map((row, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{String(row.date)}</strong></td>
+                          <td style={{ textAlign: "right" }}>{Number(row.orders || 0).toLocaleString("vi-VN")}</td>
+                          <td style={{ textAlign: "right", color: "#f87171" }}>{Number(row.refunded || 0).toLocaleString("vi-VN")}</td>
+                          <td style={{ textAlign: "right", color: "#fbbf24" }}>{Number(row.cancelled || 0).toLocaleString("vi-VN")}</td>
+                        </tr>
+                      ))}
+                    {report.kind === "customers" &&
+                      result.map((row, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{String(row.fullName || "—")}</strong></td>
+                          <td>{String(row.email || "")}</td>
+                          <td>{row.createdAt ? formatDateTime(String(row.createdAt)) : "—"}</td>
+                          <td style={{ textAlign: "right" }}>{Number(row.orders || 0).toLocaleString("vi-VN")}</td>
+                          <td style={{ textAlign: "right" }}><strong>{formatCurrency(Number(row.spent || 0))}</strong></td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <div className={styles.modalActions}>
+          <button type="button" className={styles.secondaryButton} onClick={onClose}>Đóng</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function FundRequestDetailModal({
+  fundRequestId,
+  onClose,
+  onProcessed,
+}: {
+  fundRequestId: number;
+  onClose: () => void;
+  onProcessed: (message: string) => void;
+}) {
+  const dialogRef = useDialogBehavior(onClose);
+  const [fund, setFund] = useState<ApiFundRequest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    adminApi
+      .getFundRequest(fundRequestId)
+      .then((data) => {
+        if (active) setFund(data);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Không tải được thông tin");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [fundRequestId]);
+
+  const handleApprove = async () => {
+    if (!fund) return;
+    setActionPending(true);
+    try {
+      await adminApi.approveFundRequest(fund.id, note.trim() || undefined);
+      onProcessed(`Đã duyệt và cộng ${formatCurrency(fund.amount)} cho ${fund.user?.fullName || fund.user?.email || fund.code}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không duyệt được yêu cầu");
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!fund) return;
+    const reason = await promptText({
+      title: "Từ chối yêu cầu nạp tiền",
+      text: "Nhập lý do từ chối để thông báo cho khách hàng:",
+      confirmText: "Từ chối yêu cầu",
+    });
+    if (!reason?.trim()) return;
+    setActionPending(true);
+    try {
+      await adminApi.rejectFundRequest(fund.id, reason.trim());
+      onProcessed(`Đã từ chối yêu cầu ${fund.code}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không từ chối được yêu cầu");
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const isPending = fund?.status === "pending" || fund?.status === "processing";
+
+  return (
+    <div className={styles.modalLayer} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} className={`${styles.modal} ${styles.detailModal}`} role="dialog" aria-modal="true" aria-labelledby="fund-detail-title">
+        <div className={styles.modalHeader}>
+          <div>
+            <span>CHI TIẾT YÊU CẦU NẠP TIỀN</span>
+            <h2 id="fund-detail-title">{fund?.code || `#${fundRequestId}`}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Đóng"><X size={20} /></button>
+        </div>
+
+        {loading ? (
+          <div className={styles.modalLoading}>
+            <LoaderCircle size={22} className="animate-spin" />
+            <span>Đang tải thông tin…</span>
+          </div>
+        ) : error ? (
+          <p role="alert" className={styles.inlineAlert}>{error}</p>
+        ) : fund ? (
+          <div style={{ padding: "0 20px" }}>
+            <div className={styles.detailGrid}>
+              <div>
+                <span>Khách hàng</span>
+                <strong>{fund.user?.fullName || fund.user?.email || "—"}</strong>
+                {fund.user?.email && <small style={{ color: "#8b97ab", display: "block" }}>{fund.user.email}</small>}
+              </div>
+              <div>
+                <span>Số tiền</span>
+                <strong style={{ color: "#38bdf8", fontSize: "16px" }}>{formatCurrency(fund.amount)}</strong>
+              </div>
+              <div>
+                <span>Loại yêu cầu</span>
+                <strong>{fundRequestTypeLabels[fund.type] || fund.type}</strong>
+              </div>
+              <div>
+                <span>Trạng thái</span>
+                <StatusBadge>{fundRequestStatusLabels[fund.status] || fund.status}</StatusBadge>
+              </div>
+              <div>
+                <span>Ngân hàng / STK</span>
+                <strong>{fund.bankName ? `${fund.bankName} - ${fund.bankAccountNumber || ""}` : "—"}</strong>
+                {fund.bankAccountName && <small style={{ color: "#8b97ab", display: "block" }}>Chủ TK: {fund.bankAccountName}</small>}
+              </div>
+              <div>
+                <span>Mã đối soát / Nội dung CK</span>
+                <strong>{fund.transferContent || fund.code}</strong>
+              </div>
+              <div>
+                <span>Thời gian tạo</span>
+                <strong>{formatDateTime(fund.createdAt)}</strong>
+              </div>
+              {fund.rejectReason && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span>Lý do từ chối</span>
+                  <strong style={{ color: "#f87171" }}>{fund.rejectReason}</strong>
+                </div>
+              )}
+            </div>
+
+            {isPending && (
+              <div style={{ marginTop: "16px" }}>
+                <label className={styles.fullField}>
+                  <span>Ghi chú duyệt (tùy chọn)</span>
+                  <input
+                    type="text"
+                    placeholder="VD: Đã nhận tiền qua ngân hàng..."
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <div className={styles.modalActions}>
+          <button type="button" className={styles.secondaryButton} onClick={onClose} disabled={actionPending}>Đóng</button>
+          {isPending && (
+            <>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={handleReject}
+                disabled={actionPending}
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  padding: "8px 14px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Từ chối
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={handleApprove}
+                disabled={actionPending}
+              >
+                <CheckCircle2 size={17} /> {actionPending ? "Đang xử lý…" : "Duyệt & Cộng tiền"}
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function AdminDashboard({
   initialView = "overview",
   productEditor,
@@ -859,7 +1494,10 @@ export function AdminDashboard({
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<DataRow | null>(null);
+  const [inspectingReportId, setInspectingReportId] = useState<number | null>(null);
+  const [inspectingFundId, setInspectingFundId] = useState<number | null>(null);
   /** Section-specific editor/detail dialog; `id` undefined = create. */
+  const [excelImportType, setExcelImportType] = useState<"products" | "categories" | "customers" | null>(null);
   const [editor, setEditor] = useState<{ section: ModuleSection; id?: number | string } | null>(null);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -942,8 +1580,28 @@ export function AdminDashboard({
     setQuery("");
     setDetailRow(null);
     setEditor(null);
+    setInspectingReportId(null);
+    setInspectingFundId(null);
     setNotificationOpen(false);
     router.push(id === "overview" ? "/admin" : `/admin/${id}`);
+  };
+
+  const handleExportExcel = async (type: "products" | "categories" | "customers") => {
+    try {
+      const typeLabel =
+        type === "products" ? "sản phẩm" : type === "categories" ? "danh mục" : "khách hàng";
+      notify(`Đang chuẩn bị file Excel ${typeLabel}...`);
+      if (type === "products") {
+        await adminApi.exportProductsExcel();
+      } else if (type === "categories") {
+        await adminApi.exportCategoriesExcel();
+      } else {
+        await adminApi.exportCustomersExcel();
+      }
+      notify(`Đã xuất file Excel ${typeLabel} thành công.`);
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "Xuất file Excel thất bại.", "error");
+    }
   };
 
   const EDITABLE_SECTIONS: ModuleSection[] = ["categories", "promotions", "content", "posts", "settings", "orders", "support", "customers"];
@@ -952,6 +1610,15 @@ export function AdminDashboard({
   const inspectRow = (row: DataRow) => {
     if (active === "products" && row._ref) {
       router.push(`/admin/products/${row._ref}`);
+      return;
+    }
+    if (active === "reports" && row._ref) {
+      setInspectingReportId(Number(row._ref));
+      return;
+    }
+    if (active === "funds" && row._ref) {
+      setInspectingFundId(Number(row._ref));
+      return;
       return;
     }
     if (active !== "overview" && active !== "traffic" && EDITABLE_SECTIONS.includes(active) && row._ref) {
@@ -975,6 +1642,8 @@ export function AdminDashboard({
 
   const afterEditorSaved = async (message: string) => {
     setEditor(null);
+    setInspectingReportId(null);
+    setInspectingFundId(null);
     notify(message);
     await Promise.all([remote.refresh(), refreshStats()]);
   };
@@ -1158,11 +1827,37 @@ export function AdminDashboard({
           ) : !isReleased(active) ? (
             <PendingSection label={sectionLabel} onBack={() => selectModule("overview")} />
           ) : definition && (
-            <ManagementView key={active} definition={definition} rows={rows} loading={remote.loading} query={query} onQueryChange={setQuery} onCreate={createInSection} onInspect={inspectRow} onQuickUpdate={(row) => void updateRow(row)} onDelete={DELETABLE.has(active) ? (row) => void deleteRow(row) : undefined} />
+            <ManagementView
+              key={active}
+              definition={definition}
+              rows={rows}
+              loading={remote.loading}
+              query={query}
+              onQueryChange={setQuery}
+              onCreate={createInSection}
+              onInspect={inspectRow}
+              onQuickUpdate={(row) => void updateRow(row)}
+              onDelete={DELETABLE.has(active) ? (row) => void deleteRow(row) : undefined}
+              onExportExcel={active === "products" || active === "categories" || active === "customers" ? () => void handleExportExcel(active) : undefined}
+              onImportExcel={active === "products" || active === "categories" || active === "customers" ? () => setExcelImportType(active) : undefined}
+            />
           )}
         </main>
       </div>
+      {excelImportType && (
+        <ExcelImportModal
+          type={excelImportType}
+          onClose={() => setExcelImportType(null)}
+          onSuccess={(message) => {
+            setExcelImportType(null);
+            notify(message);
+            void remote.refresh();
+          }}
+        />
+      )}
       {createOpen && active === "reports" && <ReportModal onClose={() => setCreateOpen(false)} onCreated={(message) => { setCreateOpen(false); notify(message); void remote.refresh(); }} />}
+      {inspectingReportId && <ReportDetailModal reportId={inspectingReportId} onClose={() => setInspectingReportId(null)} />}
+      {inspectingFundId && <FundRequestDetailModal fundRequestId={inspectingFundId} onClose={() => setInspectingFundId(null)} onProcessed={(message) => { setInspectingFundId(null); notify(message); void Promise.all([remote.refresh(), refreshStats()]); }} />}
       {detailRow && definition && <DetailModal definition={definition} row={detailRow} onClose={() => setDetailRow(null)} onUpdate={() => void updateRow(detailRow)} />}
       {editor?.section === "categories" && <CategoryForm categoryId={editor.id as number | undefined} onClose={() => setEditor(null)} onSaved={(message) => void afterEditorSaved(message)} />}
       {editor?.section === "promotions" && <PromotionForm promotionId={editor.id as number | undefined} onClose={() => setEditor(null)} onSaved={(message) => void afterEditorSaved(message)} />}

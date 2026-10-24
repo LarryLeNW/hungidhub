@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -6,8 +7,14 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -17,13 +24,39 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 import { User } from './entities/user.entity.js';
 import { UsersService } from './users.service.js';
+import { UsersExcelService } from './users-excel.service.js';
 
 @ApiTags('users')
 @ApiBearerAuth()
 @Roles(Role.Admin)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly excel: UsersExcelService,
+  ) {}
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export customers to Excel' })
+  exportExcel(@Res() res: Response) {
+    return this.excel.exportCustomers(res);
+  }
+
+  @Get('template')
+  @ApiOperation({ summary: 'Download customer import template' })
+  templateExcel(@Res() res: Response) {
+    return this.excel.templateCustomers(res);
+  }
+
+  @Post('import')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Import customers from Excel file' })
+  importExcel(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file Excel');
+    }
+    return this.excel.importCustomers(file.buffer);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List users (admin)' })

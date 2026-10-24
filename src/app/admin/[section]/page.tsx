@@ -8,6 +8,7 @@ const sections: AdminSection[] = [
   "products",
   "inventory",
   "customers",
+  "funds",
   "transactions",
   "posts",
   "categories",

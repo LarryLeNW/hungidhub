@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Heart,
+  LoaderCircle,
   Minus,
   PackageCheck,
   Plus,
@@ -57,6 +58,7 @@ export type CommerceDrawer = "cart" | "wishlist" | "account" | "checkout";
 
 type CommerceContextValue = {
   cart: CartLine[];
+  hasLoadedStorage: boolean;
   wishlist: CommerceProductSnapshot[];
   cartCount: number;
   wishlistCount: number;
@@ -197,20 +199,18 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
   const effectiveDraft = checkoutDraft;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const savedCart = window.localStorage.getItem(cartStorageKey);
-        const savedWishlist = window.localStorage.getItem(wishlistStorageKey);
-        if (savedCart) setCart(JSON.parse(savedCart) as CartLine[]);
-        if (savedWishlist) setWishlist(normalizeWishlist(JSON.parse(savedWishlist)));
-      } catch {
-        setCart([]);
-        setWishlist([]);
-      } finally {
-        setHasLoadedStorage(true);
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    try {
+      const savedCart = window.localStorage.getItem(cartStorageKey);
+      const savedWishlist = window.localStorage.getItem(wishlistStorageKey);
+      if (savedCart) setCart(JSON.parse(savedCart) as CartLine[]);
+      if (savedWishlist) setWishlist(normalizeWishlist(JSON.parse(savedWishlist)));
+    } catch {
+      setCart([]);
+      setWishlist([]);
+    } finally {
+      setHasLoadedStorage(true);
+    }
+    return () => {};
   }, []);
 
   useEffect(() => {
@@ -233,25 +233,29 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
 
       setCart((current) => {
         const existing = current.find((item) => item.lineId === lineKey);
-        if (existing) {
-          return current.map((item) =>
-            item.lineId === lineKey
-              ? { ...item, quantity: Math.min(item.quantity + quantity, 99) }
-              : item,
-          );
+        const next = existing
+          ? current.map((item) =>
+              item.lineId === lineKey
+                ? { ...item, quantity: Math.min(item.quantity + quantity, 99) }
+                : item,
+            )
+          : [
+              ...current,
+              {
+                ...product,
+                lineId: lineKey,
+                variantId,
+                variantLabel,
+                durationLabel,
+                quantity,
+              },
+            ];
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(cartStorageKey, JSON.stringify(next));
+          } catch {}
         }
-
-        return [
-          ...current,
-          {
-            ...product,
-            lineId: lineKey,
-            variantId,
-            variantLabel,
-            durationLabel,
-            quantity,
-          },
-        ];
+        return next;
       });
       setDrawer("cart");
     },
@@ -332,6 +336,7 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CommerceContextValue>(
     () => ({
       cart,
+      hasLoadedStorage,
       wishlist,
       cartCount: cart.reduce((sum, item) => sum + item.quantity, 0),
       wishlistCount: wishlist.length,
@@ -375,6 +380,7 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
     [
       addToCart,
       cart,
+      hasLoadedStorage,
       checkoutError,
       checkoutPending,
       drawer,
@@ -488,6 +494,63 @@ export function useCommerce() {
 export function CheckoutPageContent() {
   const commerce = useCommerce();
 
+  if (!commerce.hasLoadedStorage) {
+    return (
+      <div className="ktk-page-frame py-16 text-center">
+        <div className="mx-auto flex max-w-sm flex-col items-center justify-center p-8 text-slate-500">
+          <LoaderCircle size={28} className="animate-spin text-primary" />
+          <p className="mt-3 text-sm font-semibold">Đang tải đơn hàng…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (commerce.placedOrder) {
+    return (
+      <div className="ktk-page-frame py-8 lg:py-10">
+        <div className="mx-auto max-w-[760px] rounded-[8px] border border-border bg-white shadow-sm">
+          <CheckoutDrawer
+            cart={commerce.cart}
+            draft={commerce.checkoutDraft}
+            placedOrder={commerce.placedOrder}
+            error={commerce.checkoutError}
+            pending={commerce.checkoutPending}
+            authStatus={commerce.authStatus}
+            user={commerce.user}
+            subtotal={commerce.subtotal}
+            onChange={commerce.updateCheckoutDraft}
+            onAuthSuccess={() => commerce.resetCheckout()}
+            onSubmit={() => void commerce.submitCheckout()}
+            onClose={commerce.closeDrawer}
+            surface="page"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (!commerce.cart.length) {
+    return (
+      <div className="ktk-page-frame py-12 lg:py-16">
+        <div className="mx-auto max-w-md rounded-[12px] border border-border bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto grid size-16 place-items-center rounded-full bg-slate-100 text-slate-400">
+            <ShoppingCart size={32} />
+          </div>
+          <h1 className="mt-5 text-[22px] font-extrabold text-slate-950">Giỏ hàng của bạn đang trống</h1>
+          <p className="mt-2 text-[14px] leading-6 text-slate-600">
+            Chưa có sản phẩm nào để thanh toán. Vui lòng chọn gói sản phẩm trên cửa hàng để tiếp tục.
+          </p>
+          <Link
+            href="/"
+            className="focus-ring mt-6 inline-flex h-11 items-center justify-center rounded-[6px] bg-primary px-6 font-extrabold text-white transition hover:bg-primary-strong"
+          >
+            Tiếp tục mua sắm
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ktk-page-frame py-8 lg:py-10">
       <div className="mb-7">
@@ -522,6 +585,7 @@ export function CheckoutPageContent() {
 }
 
 function CheckoutOrderSummary({ cart, subtotal }: { cart: CartLine[]; subtotal: number }) {
+  if (!cart.length) return null;
   const quantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -533,37 +597,31 @@ function CheckoutOrderSummary({ cart, subtotal }: { cart: CartLine[]; subtotal: 
         </span>
       </div>
 
-      {cart.length ? (
-        <ul className="mt-4 divide-y divide-border">
-          {cart.map((item) => (
-            <li key={item.lineId} className="flex gap-3 py-3">
-              {item.image ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image} alt={item.title} className="size-14 rounded-md object-cover" />
-                </>
-              ) : (
-                <div className="grid size-14 shrink-0 place-items-center rounded-md bg-surface-muted text-xs font-extrabold text-primary-strong">
-                  AI
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 text-[13px] font-extrabold text-slate-950">{item.title}</p>
-                <p className="mt-1 text-[12px] text-muted">
-                  {[item.variantLabel, item.durationLabel].filter(Boolean).join(" · ")} × {item.quantity}
-                </p>
+      <ul className="mt-4 divide-y divide-border">
+        {cart.map((item) => (
+          <li key={item.lineId} className="flex gap-3 py-3">
+            {item.image ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.image} alt={item.title} className="size-14 rounded-md object-cover" />
+              </>
+            ) : (
+              <div className="grid size-14 shrink-0 place-items-center rounded-md bg-surface-muted text-xs font-extrabold text-primary-strong">
+                AI
               </div>
-              <span className="shrink-0 text-[13px] font-extrabold text-slate-900">
-                {formatCurrency(item.price * item.quantity)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-4 rounded-md border border-dashed border-border p-4 text-center text-[13px] text-muted">
-          Giỏ hàng đang trống.
-        </p>
-      )}
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-[13px] font-extrabold text-slate-950">{item.title}</p>
+              <p className="mt-1 text-[12px] text-muted">
+                {[item.variantLabel, item.durationLabel].filter(Boolean).join(" · ")} × {item.quantity}
+              </p>
+            </div>
+            <span className="shrink-0 text-[13px] font-extrabold text-slate-900">
+              {formatCurrency(item.price * item.quantity)}
+            </span>
+          </li>
+        ))}
+      </ul>
 
       <div className="mt-4 space-y-2 border-t border-border pt-4 text-[14px]">
         <div className="flex justify-between text-slate-600">

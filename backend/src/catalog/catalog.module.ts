@@ -21,6 +21,7 @@ import { Product } from './entities/product.entity.js';
 import { InventoryService } from './inventory.service.js';
 import { ProductsService } from './products.service.js';
 import { ReviewsService } from './reviews.service.js';
+import { CatalogExcelService } from './catalog-excel.service.js';
 
 @Module({
   imports: [
@@ -49,12 +50,14 @@ import { ReviewsService } from './reviews.service.js';
     ProductsService,
     InventoryService,
     ReviewsService,
+    CatalogExcelService,
   ],
   exports: [
     CategoriesService,
     ProductsService,
     InventoryService,
     ReviewsService,
+    CatalogExcelService,
   ],
 })
 export class CatalogModule {}

@@ -303,14 +303,14 @@ export class OrdersService {
     await this.notifications.notifyAdmins({
       title: `Có đơn hàng mới #${order.code}`,
       body: `${order.customerName} · ${order.total.toLocaleString('vi-VN')}đ · ${
-        order.status === OrderStatus.Completed
+        order?.status === OrderStatus.Completed
           ? 'đã thanh toán bằng ví & tự động xuất kho'
-          : order.status === OrderStatus.Processing
+          : order?.status === OrderStatus.Processing
             ? 'đã thanh toán bằng ví (chờ giao hàng)'
             : 'chờ thanh toán'
       }`,
       section: NotificationSection.Orders,
-      tone: order.status === OrderStatus.Completed ? NotificationTone.Green : NotificationTone.Cyan,
+      tone: order?.status === OrderStatus.Completed ? NotificationTone.Green : NotificationTone.Cyan,
       entityType: 'order',
       entityId: order.id,
     });
@@ -318,7 +318,7 @@ export class OrdersService {
     return {
       ...order,
       paymentInstructions:
-        order.status === OrderStatus.PendingPayment
+        order?.status === OrderStatus.PendingPayment
           ? await this.paymentInstructions(order)
           : null,
     };
